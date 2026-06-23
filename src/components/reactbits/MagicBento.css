@@ -1,0 +1,40 @@
+.mb-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+@media (min-width: 600px) { .mb-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .mb-grid { grid-template-columns: repeat(3, 1fr); } }
+
+.mb-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 180px;
+  padding: 1.25rem;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  --glow-x: 50%; --glow-y: 50%; --glow-intensity: 0; --glow-radius: 200px;
+}
+.mb-card:hover { box-shadow: 0 14px 40px -16px rgba(0, 0, 0, 0.6); }
+.mb-card__label { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(255,255,255,0.6); }
+.mb-card__title { font-size: 1.05rem; font-weight: 600; margin: 0; }
+.mb-card__desc { font-size: 0.85rem; line-height: 1.35; opacity: 0.78; margin-top: 0.35rem; }
+.mb-card--glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 5px;
+  background: radial-gradient(var(--glow-radius) circle at var(--glow-x) var(--glow-y), rgba(10,191,191,calc(var(--glow-intensity) * 0.7)) 0%, transparent 60%);
+  border-radius: inherit;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+}
+.mb-particle-container { position: relative; overflow: hidden; }

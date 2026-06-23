@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f1f3f4;
+  color: #202124;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.011em;
+}
+
+h1, h2, h3 {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Bright Google-Maps-style tiles (no dark filter) */
+.leaflet-container {
+  background: #e8eaed;
+  font-family: 'Inter', sans-serif;
+}
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: #5f6368 !important;
+}
+.leaflet-control-attribution a { color: #1a73e8 !important; }
+.leaflet-bar a {
+  background: #fff !important;
+  color: #202124 !important;
+  border-color: #e3e6ea !important;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(60, 64, 67, 0.3);
+}
+.leaflet-popup-content { margin: 12px 14px; font-family: 'Inter', sans-serif; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #dadce0; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: #bdc1c6; }
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-border bg-card;
+    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.15), 0 2px 8px rgba(60, 64, 67, 0.08);
+  }
+  .input {
+    @apply w-full rounded-xl border border-border bg-card px-4 py-2.5 text-ink
+      placeholder:text-muted outline-none transition-[border-color,box-shadow] duration-150
+      focus:border-primary focus:shadow-[0_0_0_3px_rgba(26,115,232,0.15)];
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5
+      font-medium transition-[transform,background-color,box-shadow] duration-150
+      active:scale-[0.98];
+  }
+  .btn-primary {
+    @apply btn bg-primary text-white hover:shadow-[0_2px_8px_rgba(26,115,232,0.45)];
+  }
+  .btn-ghost {
+    @apply btn border border-border bg-card text-ink hover:bg-bg hover:shadow-md;
+  }
+  .btn-alert {
+    @apply btn bg-alert text-white hover:shadow-[0_2px_8px_rgba(234,67,53,0.45)];
+  }
+  .gmaps-btn {
+    @apply btn border border-border bg-card text-ink hover:bg-bg hover:shadow-md;
+  }
+  .label {
+    @apply font-mono text-xs uppercase tracking-widest text-muted;
+  }
+  .chip {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card
+      px-3.5 py-2 text-sm font-medium text-ink shadow-lift transition-[background-color,color,box-shadow] duration-150
+      hover:bg-bg;
+  }
+  .chip-active {
+    @apply border-primary bg-primary text-white hover:bg-primary;
+  }
+}
