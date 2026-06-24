@@ -67,33 +67,31 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
   if (wc === 'yes') specs.hasStepFreeEntrance = true
   else if (wc === 'no') specs.hasStepFreeEntrance = false
 
-  const stepCount = parseInt(t.step_count ?? t['entrance:step_count'] ?? '')
+  // Steps / kerb
+  const stepCount = parseInt(t.step_count ?? t['entrance:step_count'] ?? t['steps:count'] ?? '')
   if (!isNaN(stepCount)) { specs.entranceStepCount = stepCount; if (stepCount === 0) specs.hasStepFreeEntrance = true }
+  if (derived.stepHeightCm != null) specs.stepHeightCm = derived.stepHeightCm
+  if (derived.kerbType) specs.kerbType = derived.kerbType
+  if (derived.entranceLevel) specs.entranceLevel = derived.entranceLevel
 
+  // Ramp
   if (derived.hasRamp != null) specs.rampPresent = derived.hasRamp
-
-  const inclineVal = parseFloat((t.incline || '').replace(/[%°]/g, ''))
-  if (!isNaN(inclineVal)) specs.rampGradient = Math.abs(inclineVal) <= 5 ? 'gentle' : Math.abs(inclineVal) <= 10 ? 'moderate' : 'steep'
-
-  const handrail = t.handrail ?? t['ramp:handrail']
-  if (['yes', 'both', 'left', 'right'].includes(handrail || '')) specs.rampHasHandrails = true
-  else if (handrail === 'no') specs.rampHasHandrails = false
-
-  const doorWidthRaw = t['door:width'] ?? t['entrance:width'] ?? t.width
-  if (doorWidthRaw) {
-    const w = parseFloat(doorWidthRaw.replace(/[^0-9.]/g, ''))
-    if (!isNaN(w)) specs.doorWidthCm = doorWidthRaw.includes('m') ? Math.round(w * 100) : Math.round(w)
+  if (derived.rampGradient != null) {
+    specs.rampGradientPct = derived.rampGradient
+    specs.rampGradient = derived.rampGradient <= 5 ? 'gentle' : derived.rampGradient <= 10 ? 'moderate' : 'steep'
   }
+  if (derived.rampWidthCm != null) specs.rampWidthCm = derived.rampWidthCm
+  if (derived.rampHasHandrail != null) specs.rampHasHandrails = derived.rampHasHandrail
+
+  // Door
+  if (derived.doorWidthCm != null) specs.doorWidthCm = derived.doorWidthCm
   if (derived.doorType === 'Automatic') specs.doorType = 'automatic'
-  else if (t.door === 'hinged') specs.doorType = 'manual'
+  else if (t.door === 'hinged' || t.door === 'manual') specs.doorType = 'manual'
 
+  // Lift
   if (derived.hasLift != null) specs.hasLift = derived.hasLift
-
-  const liftWidth = t['lift:width'] ?? t['elevator:width']
-  if (liftWidth) {
-    const w = parseFloat(liftWidth.replace(/[^0-9.]/g, ''))
-    if (!isNaN(w)) specs.liftDoorWidthCm = liftWidth.includes('m') ? Math.round(w * 100) : Math.round(w)
-  }
+  if (derived.liftWidthCm != null) specs.liftDoorWidthCm = derived.liftWidthCm
+  if (derived.liftDepthCm != null) specs.liftDepthCm = derived.liftDepthCm
 
   if (derived.accessibleToilet) specs.hasAccessibleToilet = true
   else if ((t['toilets:wheelchair'] || t['wheelchair:toilets'] || '').toLowerCase() === 'no') specs.hasAccessibleToilet = false
@@ -115,6 +113,7 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
   else if (t.tactile_paving?.toLowerCase() === 'no') specs.hasTactilePaving = false
 
   if (derived.hasDisabledParking != null) specs.hasDisabledParking = derived.hasDisabledParking
+  if (derived.disabledParkingSpaces != null) specs.disabledParkingSpaces = derived.disabledParkingSpaces
 
   // ── Image ─────────────────────────────────────────────────────────
   let imageUrl: string | undefined
@@ -140,6 +139,24 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
     const addr = [t['addr:housenumber'], t['addr:street'], t['addr:city']].filter(Boolean).join(' ')
     extras.push({ label: 'Address (OSM)', value: addr })
   }
+  // Sensory / hearing / extra accessibility
+  if ((t['hearing_loop'] || t['deaf:loop'] || '').toLowerCase() === 'yes')
+    extras.push({ label: 'Hearing loop', value: 'Yes' })
+  if ((t['menu:braille'] || t['braille'] || '').toLowerCase() === 'yes')
+    extras.push({ label: 'Braille menu', value: 'Available' })
+  if ((t['quiet_room'] || t['sensory_room'] || '').toLowerCase() === 'yes')
+    extras.push({ label: 'Quiet / sensory room', value: 'Available' })
+  if ((t['changing_place'] || t['changing_table:wheelchair'] || '').toLowerCase() === 'yes')
+    extras.push({ label: 'Changing Place', value: 'Available' })
+  if ((t['assistance_dog'] || '').toLowerCase() === 'yes')
+    extras.push({ label: 'Assistance dogs', value: 'Allowed' })
+  const wSeating = t['capacity:wheelchair'] || t['wheelchair:seating']
+  if (wSeating && wSeating !== 'no' && wSeating !== '0')
+    extras.push({ label: 'Wheelchair seating', value: /^\d+$/.test(wSeating) ? `${wSeating} spaces` : 'Available' })
+  const minWidth = t['min_width'] || t['corridor:width']
+  if (minWidth) extras.push({ label: 'Min. corridor width', value: minWidth })
+  if (t['toilets:grab_rail'] || t['grab_rail']) extras.push({ label: 'Grab rails', value: t['toilets:grab_rail'] === 'yes' || t['grab_rail'] === 'yes' ? 'Yes' : 'No' })
+  if (t['turning_circle:wheelchair'] || t['turning_space']) extras.push({ label: 'Wheelchair turning space', value: t['turning_circle:wheelchair'] || t['turning_space'] })
 
   return {
     osmId: `${el.type}/${el.id}`,

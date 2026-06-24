@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
   MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
-  Navigation2, ChevronRight, Car, ArrowUpDown, Zap, Clock, Info,
+  Navigation2, ChevronRight, Car, ArrowUpDown, Zap, Clock, Info, CheckCircle2,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BrandPin from '../components/MapPin'
@@ -587,36 +587,126 @@ export default function MapPage() {
                         </div>
                       )}
 
-                      {/* Physical feature badges */}
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {/* Physical features — labelled badges with measurements */}
+                      <div className="mt-2.5 space-y-1.5">
+                        {/* Terrain */}
                         {p.terrain !== 'Unknown' && (
-                          <span className="badge"><Mountain size={10} aria-hidden="true" /> {p.terrain}</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="badge"><Mountain size={10} aria-hidden="true" /> {p.surface ? `${p.surface} surface` : p.terrain + ' surface'}</span>
+                          </div>
                         )}
+
+                        {/* Steps / kerb */}
+                        {(p.stepCount != null || p.stepHeightCm != null || p.kerbType) && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {p.stepCount != null && p.stepCount > 0 && (
+                              <span className="badge border-[#c5221f]/30 bg-[#fce8e6] text-[#c5221f]">
+                                <Info size={10} aria-hidden="true" />
+                                {p.stepCount} step{p.stepCount !== 1 ? 's' : ''} at entrance
+                                {p.stepHeightCm != null ? ` (${p.stepHeightCm} cm each)` : ''}
+                              </span>
+                            )}
+                            {p.stepCount === 0 && (
+                              <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                                <CheckCircle2 size={10} aria-hidden="true" /> Step-free entrance
+                              </span>
+                            )}
+                            {p.kerbType && (
+                              <span className={`badge ${p.kerbType === 'flush' || p.kerbType === 'lowered' ? 'text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]' : ''}`}>
+                                Kerb: {p.kerbType}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Ramp */}
                         {p.hasRamp && (
-                          <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                            <ArrowUpDown size={10} aria-hidden="true" /> Ramp
-                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                              <ArrowUpDown size={10} aria-hidden="true" />
+                              Ramp{p.rampGradient != null ? ` · ${p.rampGradient.toFixed(0)}% gradient` : ''}
+                              {p.rampWidthCm != null ? ` · ${p.rampWidthCm} cm wide` : ''}
+                            </span>
+                            {p.rampHasHandrail === true && (
+                              <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Handrail ✓</span>
+                            )}
+                            {p.rampHasHandrail === false && (
+                              <span className="badge">No handrail</span>
+                            )}
+                          </div>
                         )}
+
+                        {/* Door */}
+                        {(p.doorType || p.doorWidthCm != null) && (
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className={`badge ${p.doorType === 'Automatic' ? 'text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]' : ''}`}>
+                              <Zap size={10} aria-hidden="true" />
+                              {p.doorType ?? 'Door'}{p.doorWidthCm != null ? ` · ${p.doorWidthCm} cm clear width` : ''}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Lift */}
                         {p.hasLift && (
-                          <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                            <Zap size={10} aria-hidden="true" /> Lift
-                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                              <Zap size={10} aria-hidden="true" />
+                              Lift{p.liftWidthCm != null ? ` · ${p.liftWidthCm} cm wide` : ''}
+                              {p.liftDepthCm != null ? ` × ${p.liftDepthCm} cm deep` : ''}
+                            </span>
+                          </div>
                         )}
+
+                        {/* Accessible toilet */}
                         {p.accessibleToilet && (
-                          <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                            <Toilet size={10} aria-hidden="true" /> Accessible WC
-                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                              <Toilet size={10} aria-hidden="true" /> Accessible WC
+                            </span>
+                          </div>
                         )}
+
+                        {/* Disabled parking */}
                         {p.hasDisabledParking && (
-                          <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                            <Car size={10} aria-hidden="true" /> Disabled parking
-                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                              <Car size={10} aria-hidden="true" />
+                              Disabled parking{p.disabledParkingSpaces != null ? ` · ${p.disabledParkingSpaces} space${p.disabledParkingSpaces !== 1 ? 's' : ''}` : ''}
+                            </span>
+                          </div>
                         )}
-                        {p.doorType && (
-                          <span className="badge"><ArrowUpDown size={10} aria-hidden="true" /> {p.doorType} door</span>
+
+                        {/* Tactile + entrance level */}
+                        {(p.tactile || p.entranceLevel) && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {p.tactile && <span className="badge">Tactile paving</span>}
+                            {p.entranceLevel && <span className="badge">Accessible entry: level {p.entranceLevel}</span>}
+                          </div>
                         )}
-                        {p.tactile && (
-                          <span className="badge">Tactile paving</span>
+
+                        {/* Corridor width */}
+                        {p.corridorWidthCm != null && (
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className={`badge ${p.corridorWidthCm >= 120 ? 'text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]' : p.corridorWidthCm < 80 ? 'border-[#c5221f]/30 bg-[#fce8e6] text-[#c5221f]' : ''}`}>
+                              Corridor: {p.corridorWidthCm} cm wide
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Sensory / hearing / extra */}
+                        {(p.hearingLoop || p.brailleMenu || p.quietRoom || p.changingPlace || p.allowsAssistanceDogs || p.hasWheelchairSeating) && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {p.hearingLoop && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Hearing loop</span>}
+                            {p.brailleMenu && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Braille menu</span>}
+                            {p.quietRoom && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Quiet room</span>}
+                            {p.changingPlace && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Changing Place</span>}
+                            {p.allowsAssistanceDogs && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Assistance dogs welcome</span>}
+                            {p.hasWheelchairSeating && (
+                              <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                                Wheelchair seating{p.wheelchairSeatingCount != null ? ` (${p.wheelchairSeatingCount} spaces)` : ''}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
 
@@ -626,17 +716,15 @@ export default function MapPage() {
                           "{p.wheelchairDescription}"
                         </p>
                       )}
+                      {p.rampNote && (
+                        <p className="mt-1 text-[11px] text-[#6b7280]">Ramp note: {p.rampNote}</p>
+                      )}
 
                       {/* Opening hours */}
                       {p.openingHours && (
                         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#6b7280]">
                           <Clock size={10} aria-hidden="true" /> {p.openingHours}
                         </p>
-                      )}
-
-                      {/* Ramp note */}
-                      {p.rampNote && (
-                        <p className="mt-1 text-[11px] text-[#6b7280]">Ramp: {p.rampNote}</p>
                       )}
 
                       {/* Detail page + OSM links */}

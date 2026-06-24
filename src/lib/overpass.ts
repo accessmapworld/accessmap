@@ -27,16 +27,45 @@ export interface Poi {
   accessScore: number | null
   accessLabel: string
   breakdown: ScoreBreakdown
-  // Physical details
+  // Surface / terrain
   terrain: string
   surface?: string
-  accessibleToilet: boolean
-  tactile: boolean
+  // Ramp
   hasRamp?: boolean
+  rampGradient?: number       // % incline
+  rampWidthCm?: number        // cm
+  rampHasHandrail?: boolean
   rampNote?: string
+  // Steps / kerb
+  stepCount?: number          // steps at entrance
+  stepHeightCm?: number       // cm per step
+  kerbType?: string           // flush | lowered | raised | etc.
+  // Door / entrance
+  doorType?: string           // Automatic | Manual
+  doorWidthCm?: number        // cm clear width
+  entranceLevel?: string      // floor/level of accessible entrance
+  // Lift / elevator
   hasLift?: boolean
+  liftWidthCm?: number        // cm door width
+  liftDepthCm?: number        // cm cabin depth
+  // Toilet
+  accessibleToilet: boolean
+  // Parking
   hasDisabledParking?: boolean
-  doorType?: string
+  disabledParkingSpaces?: number
+  // Navigation aids
+  tactile: boolean
+  hearingLoop?: boolean
+  brailleMenu?: boolean
+  visualImpaired?: boolean
+  // Seating / space
+  hasWheelchairSeating?: boolean
+  wheelchairSeatingCount?: number
+  corridorWidthCm?: number
+  // Sensory
+  quietRoom?: boolean
+  changingPlace?: boolean
+  allowsAssistanceDogs?: boolean
   // Extra info
   openingHours?: string
   phone?: string
@@ -82,14 +111,32 @@ const CATEGORY_PRIORS: Partial<Record<CategoryKey, {
   inferLift?: boolean
   inferToilet?: boolean
   inferParking?: boolean
-  baseBonus?: number  // bonus when totally unrated (no wheelchair tag at all)
-  baseBonusReason?: string
+  // Base score for when ZERO accessibility data exists (no wheelchair tag, no surface)
+  // These are conservative real-world averages, not optimistic guesses
+  unratedBase: number
+  unratedReason: string
 }>> = {
-  hospital:  { inferLift: true,  inferToilet: true,  inferParking: true,  baseBonus: 3.0, baseBonusReason: 'Healthcare facility — legally required to be accessible' },
-  pharmacy:  { inferToilet: false, inferParking: false, baseBonus: 1.5, baseBonusReason: 'Pharmacy — typically step-free entrance' },
-  hotel:     { inferLift: true,  baseBonus: 1.0, baseBonusReason: 'Hotel — usually has accessible rooms and lift' },
-  bank:      { baseBonus: 0.5, baseBonusReason: 'Bank/ATM — typically step-free entrance required' },
-  school:    { baseBonus: 0.3, baseBonusReason: 'School — public buildings usually accessible' },
+  hospital:   { inferLift: true,  inferToilet: true,  inferParking: true,  unratedBase: 7.0, unratedReason: 'Healthcare facility — legally required to meet accessibility standards' },
+  pharmacy:   { inferToilet: false, inferParking: false, unratedBase: 5.5, unratedReason: 'Pharmacy — typically accessible entrance required by regulation' },
+  hotel:      { inferLift: true,  unratedBase: 5.5, unratedReason: 'Hotel — usually has at least one accessible room and lift' },
+  bank:       { unratedBase: 5.0, unratedReason: 'Bank/ATM — typically step-free entrance required' },
+  school:     { unratedBase: 4.5, unratedReason: 'School — public building, accessibility varies widely' },
+  shop:       { unratedBase: 4.0, unratedReason: 'Retail shop — accessibility varies; assume basic entrance' },
+  restaurant: { unratedBase: 3.5, unratedReason: 'Restaurant — accessibility highly variable' },
+  cafe:       { unratedBase: 3.5, unratedReason: 'Café — accessibility highly variable' },
+  park:       { unratedBase: 3.0, unratedReason: 'Park — surface varies; many parks have paved paths but not all' },
+  attraction: { unratedBase: 4.5, unratedReason: 'Tourist attraction — modern ones tend to be accessible; older ones vary' },
+}
+
+/** Parse a measurement string like "0.9 m", "90 cm", "90", "0.9" → cm (integer). */
+function parseCm(raw: string): number | null {
+  if (!raw) return null
+  const v = parseFloat(raw.replace(/[^0-9.]/g, ''))
+  if (isNaN(v)) return null
+  // Treat values ≤ 10 as metres (0.9 m → 90 cm), larger as cm already
+  return raw.toLowerCase().includes('m') && !raw.toLowerCase().includes('cm')
+    ? Math.round(v * 100)
+    : v < 10 ? Math.round(v * 100) : Math.round(v)
 }
 
 export function deriveAccess(tags: Record<string, string>, category?: CategoryKey): Omit<Poi,
@@ -102,21 +149,65 @@ export function deriveAccess(tags: Record<string, string>, category?: CategoryKe
   const tactile = (tags.tactile_paving || '').toLowerCase() === 'yes'
   const { terrain, surface } = terrainFrom(tags)
 
+  // ── Ramp ─────────────────────────────────────────────────────────
   const rampRaw = (tags['ramp:wheelchair'] || tags.ramp || '').toLowerCase()
   const hasRamp = ['yes', 'up', 'down', 'both'].includes(rampRaw)
   const rampNote = tags['ramp:wheelchair:description'] || tags['ramp:description'] || undefined
 
-  const hasLift = (tags.lift || '').toLowerCase() === 'yes'
-  const parkingRaw = tags['parking:disabled'] || tags['capacity:disabled'] || ''
-  const hasDisabledParking = !!parkingRaw && parkingRaw !== 'no' && parkingRaw !== '0'
+  const inclineRaw = parseFloat((tags.incline || tags['ramp:incline'] || '').replace(/[%°]/g, ''))
+  const rampGradient = !isNaN(inclineRaw) ? Math.abs(inclineRaw) : undefined
+  const steepIncline = rampGradient != null && rampGradient > 8
 
+  const rampWidthRaw = tags['ramp:width'] || tags['ramp:wheelchair:width']
+  const rampWidthCm = rampWidthRaw ? parseCm(rampWidthRaw) : undefined
+  const handrailRaw = (tags['ramp:handrail'] || tags.handrail || '').toLowerCase()
+  const rampHasHandrail = ['yes', 'both', 'left', 'right'].includes(handrailRaw) ? true
+    : handrailRaw === 'no' ? false : undefined
+
+  // ── Steps / kerb ─────────────────────────────────────────────────
+  const stepCountRaw = parseInt(tags.step_count || tags['entrance:step_count'] || tags['steps:count'] || '')
+  const stepCount = !isNaN(stepCountRaw) ? stepCountRaw : undefined
+  const stepHeightRaw = tags.step_height || tags['entrance:step_height'] || tags['kerb:height']
+  const stepHeightCm = stepHeightRaw ? parseCm(stepHeightRaw) : undefined
+  const kerbType = tags.kerb || tags.curb || undefined
+
+  // ── Door / entrance ───────────────────────────────────────────────
   const doorRaw = (tags.automatic_door || tags['door:automatic'] || '').toLowerCase()
   const doorType = doorRaw === 'yes' || doorRaw === 'button' || doorRaw === 'motion'
     ? 'Automatic'
-    : tags.door === 'hinged' ? 'Manual' : undefined
+    : (tags.door === 'hinged' || tags.door === 'manual') ? 'Manual' : undefined
+  const doorWidthRaw = tags['door:width'] || tags['entrance:width'] || tags['width']
+  const doorWidthCm = doorWidthRaw ? parseCm(doorWidthRaw) : undefined
+  const entranceLevel = tags.level || tags['entrance:level'] || undefined
 
-  const inclineRaw = parseFloat((tags.incline || '').replace(/[%°]/g, ''))
-  const steepIncline = !isNaN(inclineRaw) && Math.abs(inclineRaw) > 8
+  // ── Lift / elevator ───────────────────────────────────────────────
+  const hasLift = (tags.lift || tags.elevator || '').toLowerCase() === 'yes'
+  const liftWidthCm = parseCm(tags['lift:width'] || tags['elevator:width'] || '') || undefined
+  const liftDepthCm = parseCm(tags['lift:depth'] || tags['elevator:depth'] || '') || undefined
+
+  // ── Parking ───────────────────────────────────────────────────────
+  const parkingRaw = tags['parking:disabled'] || tags['capacity:disabled'] || ''
+  const hasDisabledParking = !!parkingRaw && parkingRaw !== 'no' && parkingRaw !== '0'
+  const disabledParkingSpaces = (() => {
+    const n = parseInt(tags['capacity:disabled'] || '')
+    return !isNaN(n) && n > 0 ? n : undefined
+  })()
+
+  // ── Additional accessibility details ──────────────────────────────
+  const hearingLoop = (tags['hearing_loop'] || tags['deaf:loop'] || '').toLowerCase() === 'yes'
+  const brailleMenu = (tags['menu:braille'] || tags['braille'] || '').toLowerCase() === 'yes'
+  const visualImpaired = (tags['blind:sign'] || tags['tactile_writing'] || '').toLowerCase() === 'yes'
+  const wheelchairSeating = (tags['wheelchair:seating'] || tags['capacity:wheelchair'] || '')
+  const hasWheelchairSeating = !!wheelchairSeating && wheelchairSeating !== 'no' && wheelchairSeating !== '0'
+  const wheelchairSeatingCount = (() => {
+    const n = parseInt(tags['capacity:wheelchair'] || '')
+    return !isNaN(n) && n > 0 ? n : undefined
+  })()
+  const quietRoom = (tags['quiet_room'] || tags['sensory_room'] || '').toLowerCase() === 'yes'
+  const changingPlace = (tags['changing_place'] || tags['changing_table:wheelchair'] || '').toLowerCase() === 'yes'
+  const assistanceAnimals = (tags['assistance_dog'] || tags['dog'] || '').toLowerCase()
+  const allowsAssistanceDogs = assistanceAnimals === 'yes' || assistanceAnimals === 'allowed'
+  const corridorWidthCm = parseCm(tags['min_width'] || tags['width'] || '') || undefined
 
   // ── Base ─────────────────────────────────────────────────────────
   let base: number | null = null
@@ -138,12 +229,12 @@ export function deriveAccess(tags: Record<string, string>, category?: CategoryKe
     base = 1.5; baseReason = 'Rough/unpaved — likely inaccessible'; confidence = 'low'; inferred = true
   }
 
-  // ── Category-based priors (applied when wheelchair=yes, no detail tags) ──
+  // ── Category-based priors ─────────────────────────────────────────
   const prior = category ? CATEGORY_PRIORS[category] : undefined
-  // For unrated places with no base, apply category base bonus
-  if (base === null && prior?.baseBonus) {
-    base = 3.5 + prior.baseBonus   // start from a low base + category bonus
-    baseReason = prior.baseBonusReason ?? 'Category-inferred accessibility'
+  // When there is NO accessibility data at all, assign a category-based estimated score
+  if (base === null) {
+    base = prior?.unratedBase ?? 3.0
+    baseReason = prior?.unratedReason ?? 'No accessibility data — estimated from venue type'
     confidence = 'low'
     inferred = true
   }
@@ -163,6 +254,10 @@ export function deriveAccess(tags: Record<string, string>, category?: CategoryKe
     if (effectiveLift)     bonuses.push({ label: hasLift ? 'Lift/elevator ✓' : 'Lift (typical for this venue) ✓', points: 0.5 })
     if (doorType === 'Automatic') bonuses.push({ label: 'Automatic doors ✓', points: 0.3 })
     if (effectiveParking)  bonuses.push({ label: hasDisabledParking ? 'Disabled parking ✓' : 'Disabled parking (typical) ✓', points: 0.2 })
+    if (hearingLoop)       bonuses.push({ label: 'Hearing loop ✓', points: 0.3 })
+    if (hasWheelchairSeating) bonuses.push({ label: 'Wheelchair seating available ✓', points: 0.2 })
+    if (changingPlace)     bonuses.push({ label: 'Changing Place facility ✓', points: 0.5 })
+    if (quietRoom)         bonuses.push({ label: 'Quiet / sensory room ✓', points: 0.3 })
   }
 
   // ── Penalties ─────────────────────────────────────────────────────
@@ -192,25 +287,52 @@ export function deriveAccess(tags: Record<string, string>, category?: CategoryKe
   }
 
   const accessLabel =
-    total === null        ? 'Unrated'
-    : wheelchair === 'no' ? 'Not accessible'
-    : total >= 8.5        ? 'Fully accessible'
-    : total >= 6.5        ? 'Accessible'
-    : total >= 4.5        ? 'Partly accessible'
-    : total >= 2.5        ? 'Limited access'
-    : 'Poor access'
+      wheelchair === 'no' ? 'Not accessible'
+    : total != null && total >= 8.5 ? 'Fully accessible'
+    : total != null && total >= 6.5 ? 'Accessible'
+    : total != null && total >= 4.5 ? 'Partly accessible'
+    : total != null && total >= 2.5 ? 'Limited access'
+    : total != null ? 'Poor access'
+    : 'Unrated'
 
   return {
     wheelchair, accessScore: total, accessLabel,
     breakdown: { base, baseReason, bonuses, penalties, total, confidence },
     terrain, surface,
-    accessibleToilet: effectiveToilet,
-    tactile,
+    // Ramp
     hasRamp,
+    rampGradient,
+    rampWidthCm: rampWidthCm ?? undefined,
+    rampHasHandrail,
     rampNote,
-    hasLift: effectiveLift,
-    hasDisabledParking: effectiveParking,
+    // Steps / kerb
+    stepCount,
+    stepHeightCm: stepHeightCm ?? undefined,
+    kerbType,
+    // Door / entrance
     doorType,
+    doorWidthCm: doorWidthCm ?? undefined,
+    entranceLevel,
+    // Lift
+    hasLift: effectiveLift,
+    liftWidthCm,
+    liftDepthCm,
+    // Toilet
+    accessibleToilet: effectiveToilet,
+    // Parking
+    hasDisabledParking: effectiveParking,
+    disabledParkingSpaces,
+    // Navigation / sensory
+    tactile,
+    hearingLoop: hearingLoop || undefined,
+    brailleMenu: brailleMenu || undefined,
+    visualImpaired: visualImpaired || undefined,
+    hasWheelchairSeating: hasWheelchairSeating || undefined,
+    wheelchairSeatingCount,
+    corridorWidthCm,
+    quietRoom: quietRoom || undefined,
+    changingPlace: changingPlace || undefined,
+    allowsAssistanceDogs: allowsAssistanceDogs || undefined,
   }
 }
 

@@ -303,25 +303,101 @@ export default function PlaceDetail() {
       {!osmLoading && osmData && (() => {
         const s = osmData.specs
         const features: React.ReactNode[] = []
-        if (s.hasStepFreeEntrance === true)  features.push(<FeatureBadge key="step" icon={CheckCircle2} label="Step-free entrance" positive />)
-        if (s.hasStepFreeEntrance === false) features.push(<FeatureBadge key="step" icon={Info} label="Steps at entrance" />)
-        if (s.entranceStepCount != null && s.entranceStepCount > 0) features.push(<FeatureBadge key="steps" icon={Info} label={`${s.entranceStepCount} step${s.entranceStepCount !== 1 ? 's' : ''} at entrance`} />)
-        if (s.rampPresent === true)          features.push(<FeatureBadge key="ramp" icon={ArrowUpDown} label={`Ramp${s.rampGradient ? ` (${s.rampGradient})` : ''}`} positive />)
-        if (s.hasLift === true)              features.push(<FeatureBadge key="lift" icon={Zap} label="Lift / elevator" positive />)
-        if (s.hasLift === false)             features.push(<FeatureBadge key="lift" icon={Info} label="No lift" />)
-        if (s.hasAccessibleToilet === true)  features.push(<FeatureBadge key="wc" icon={ToiletIcon} label={`Accessible WC${s.toiletGrabRails ? ' + grab rails' : ''}`} positive />)
-        if (s.hasAccessibleToilet === false) features.push(<FeatureBadge key="wc" icon={Info} label="No accessible WC" />)
-        if (s.hasDisabledParking === true)   features.push(<FeatureBadge key="park" icon={Car} label={`Disabled parking${s.parkingDistanceM != null ? ` (${s.parkingDistanceM}m away)` : ''}`} positive />)
-        if (s.hasTactilePaving === true)     features.push(<FeatureBadge key="tac" icon={Footprints} label="Tactile paving" positive />)
-        if (s.doorType)                      features.push(<FeatureBadge key="door" icon={CheckCircle2} label={`${s.doorType === 'automatic' ? 'Automatic' : s.doorType === 'manual' ? 'Manual' : 'Heavy manual'} door`} positive={s.doorType === 'automatic'} />)
-        if (s.doorWidthCm)                   features.push(<FeatureBadge key="dw" icon={Info} label={`Door width: ${s.doorWidthCm}cm`} positive={s.doorWidthCm >= 80} />)
-        if (s.floorSurface)                  features.push(<FeatureBadge key="surf" icon={Info} label={`Surface: ${s.floorSurface}`} positive={s.floorSurface === 'smooth'} />)
 
-        if (features.length === 0) return null
+        // Entrance / steps
+        if (s.hasStepFreeEntrance === true)
+          features.push(<FeatureBadge key="step" icon={CheckCircle2} label="Step-free entrance" positive />)
+        if (s.hasStepFreeEntrance === false)
+          features.push(<FeatureBadge key="step-no" icon={Info} label="Steps at entrance" />)
+        if (s.entranceStepCount != null && s.entranceStepCount > 0)
+          features.push(<FeatureBadge key="steps" icon={Info} label={`${s.entranceStepCount} step${s.entranceStepCount !== 1 ? 's' : ''} at entrance${s.stepHeightCm != null ? ` (${s.stepHeightCm} cm each)` : ''}`} />)
+        if (s.kerbType)
+          features.push(<FeatureBadge key="kerb" icon={Info} label={`Kerb: ${s.kerbType}`} positive={s.kerbType === 'flush' || s.kerbType === 'lowered'} />)
+        if (s.entranceLevel)
+          features.push(<FeatureBadge key="level" icon={Info} label={`Accessible entry: level ${s.entranceLevel}`} positive />)
+
+        // Ramp
+        if (s.rampPresent === true) {
+          const rampParts: string[] = ['Ramp']
+          if (s.rampGradientPct != null) rampParts.push(`${s.rampGradientPct.toFixed(0)}% gradient (${s.rampGradient ?? ''})`)
+          else if (s.rampGradient) rampParts.push(s.rampGradient)
+          if (s.rampWidthCm != null) rampParts.push(`${s.rampWidthCm} cm wide`)
+          features.push(<FeatureBadge key="ramp" icon={ArrowUpDown} label={rampParts.join(' · ')} positive />)
+          if (s.rampHasHandrails === true)
+            features.push(<FeatureBadge key="rail" icon={CheckCircle2} label="Ramp handrail" positive />)
+          if (s.rampHasHandrails === false)
+            features.push(<FeatureBadge key="rail-no" icon={Info} label="No ramp handrail" />)
+        }
+
+        // Door
+        if (s.doorType) {
+          const doorLabel = s.doorType === 'automatic' ? 'Automatic door' : s.doorType === 'manual' ? 'Manual door' : 'Heavy manual door'
+          features.push(<FeatureBadge key="door" icon={CheckCircle2} label={`${doorLabel}${s.doorWidthCm != null ? ` · ${s.doorWidthCm} cm clear width` : ''}`} positive={s.doorType === 'automatic'} />)
+        } else if (s.doorWidthCm != null) {
+          features.push(<FeatureBadge key="dw" icon={Info} label={`Door width: ${s.doorWidthCm} cm`} positive={s.doorWidthCm >= 80} />)
+        }
+
+        // Lift
+        if (s.hasLift === true) {
+          const liftParts: string[] = ['Lift / elevator']
+          if (s.liftDoorWidthCm != null) liftParts.push(`${s.liftDoorWidthCm} cm door`)
+          if (s.liftDepthCm != null) liftParts.push(`${s.liftDepthCm} cm deep`)
+          features.push(<FeatureBadge key="lift" icon={Zap} label={liftParts.join(' · ')} positive />)
+        }
+        if (s.hasLift === false)
+          features.push(<FeatureBadge key="lift-no" icon={Info} label="No lift" />)
+
+        // Accessible WC
+        if (s.hasAccessibleToilet === true)
+          features.push(<FeatureBadge key="wc" icon={ToiletIcon} label={`Accessible WC${s.toiletGrabRails ? ' + grab rails' : ''}${s.turningSpaceCm != null ? ` · ${s.turningSpaceCm} cm turning` : ''}`} positive />)
+        if (s.hasAccessibleToilet === false)
+          features.push(<FeatureBadge key="wc-no" icon={Info} label="No accessible WC" />)
+
+        // Parking
+        if (s.hasDisabledParking === true)
+          features.push(<FeatureBadge key="park" icon={Car} label={`Disabled parking${s.disabledParkingSpaces != null ? ` · ${s.disabledParkingSpaces} space${s.disabledParkingSpaces !== 1 ? 's' : ''}` : ''}${s.parkingDistanceM != null ? ` (${s.parkingDistanceM}m)` : ''}`} positive />)
+
+        // Surface / tactile
+        if (s.floorSurface)
+          features.push(<FeatureBadge key="surf" icon={Info} label={`Surface: ${s.floorSurface}`} positive={s.floorSurface === 'smooth'} />)
+        if (s.hasTactilePaving === true)
+          features.push(<FeatureBadge key="tac" icon={Footprints} label="Tactile paving" positive />)
+        if (s.disabledParkingSpaces != null)
+          features.push(<FeatureBadge key="pkspaces" icon={Car} label={`${s.disabledParkingSpaces} disabled parking space${s.disabledParkingSpaces !== 1 ? 's' : ''}`} positive />)
+
+        // Sensory / hearing extras (from OSM extras)
+        const extras = osmData.extras
+        const extraByLabel = (lbl: string) => extras.find(e => e.label === lbl)?.value
+        if (extraByLabel('Hearing loop') === 'Yes')
+          features.push(<FeatureBadge key="loop" icon={Info} label="Hearing loop" positive />)
+        if (extraByLabel('Braille menu') === 'Available')
+          features.push(<FeatureBadge key="braille" icon={Info} label="Braille menu available" positive />)
+        if (extraByLabel('Quiet / sensory room') === 'Available')
+          features.push(<FeatureBadge key="quiet" icon={Info} label="Quiet / sensory room" positive />)
+        if (extraByLabel('Changing Place') === 'Available')
+          features.push(<FeatureBadge key="cp" icon={ToiletIcon} label="Changing Place facility" positive />)
+        if (extraByLabel('Assistance dogs') === 'Allowed')
+          features.push(<FeatureBadge key="dog" icon={Info} label="Assistance dogs welcome" positive />)
+        const wSeating = extraByLabel('Wheelchair seating')
+        if (wSeating)
+          features.push(<FeatureBadge key="wseat" icon={Info} label={`Wheelchair seating: ${wSeating}`} positive />)
+        const minWidth = extraByLabel('Min. corridor width')
+        if (minWidth)
+          features.push(<FeatureBadge key="corridor" icon={Info} label={`Min corridor: ${minWidth}`} positive={parseFloat(minWidth) >= 120} />)
+        const grabRail = extraByLabel('Grab rails')
+        if (grabRail === 'Yes')
+          features.push(<FeatureBadge key="grab" icon={CheckCircle2} label="Grab rails" positive />)
+        const turningSpace = extraByLabel('Wheelchair turning space')
+        if (turningSpace)
+          features.push(<FeatureBadge key="turn" icon={Info} label={`Turning space: ${turningSpace}`} positive />)
+
         return (
           <section className="mb-6">
             <h2 className="label mb-3">Physical access features</h2>
-            <div className="flex flex-wrap gap-2">{features}</div>
+            {features.length > 0
+              ? <div className="flex flex-wrap gap-2">{features}</div>
+              : <p className="text-sm text-muted">No detailed physical access data recorded in OpenStreetMap yet.</p>
+            }
             {osmData.wheelchairDescription && (
               <p className="mt-3 text-sm italic text-muted leading-relaxed">
                 "{osmData.wheelchairDescription}"

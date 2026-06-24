@@ -36,14 +36,22 @@ export interface AccessSpecs {
   // entrances
   hasStepFreeEntrance?: boolean
   entranceStepCount?: number   // 0 = step-free
+  stepHeightCm?: number        // per step
+  kerbType?: string            // flush | lowered | raised
+  entranceLevel?: string       // floor number
+  // ramp
   rampPresent?: boolean
   rampGradient?: 'gentle' | 'moderate' | 'steep'
+  rampGradientPct?: number     // actual % value from OSM
+  rampWidthCm?: number         // cm clear width
   rampHasHandrails?: boolean
+  // door
   doorWidthCm?: number         // cm
   doorType?: 'manual' | 'automatic' | 'heavy_manual' | 'revolving'
   // interior
   hasLift?: boolean
   liftDoorWidthCm?: number
+  liftDepthCm?: number         // cabin depth
   corridorWidthCm?: number     // narrowest point
   hasAccessibleToilet?: boolean
   toiletGrabRails?: boolean
@@ -53,6 +61,7 @@ export interface AccessSpecs {
   hasTactilePaving?: boolean
   // parking
   hasDisabledParking?: boolean
+  disabledParkingSpaces?: number
   parkingDistanceM?: number
   // notes
   notes?: string
