@@ -588,7 +588,7 @@ export default function PlaceDetail() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {communityPhotos.map((p, i) => (
               <div key={i} className="relative overflow-hidden rounded-xl border border-border">
-                <img src={p.url} alt="" className="aspect-square w-full object-cover" />
+                <img src={p.url} alt={`Accessibility photo of ${place.name}`} className="aspect-square w-full object-cover" />
                 <span className={`absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${p.verified ? 'bg-green-600 text-white' : 'bg-alert text-white'}`}>
                   {p.verified ? <ShieldCheck size={10} /> : <ShieldAlert size={10} />}
                   {p.verified ? 'Verified' : 'Unverified'}
@@ -639,7 +639,7 @@ export default function PlaceDetail() {
               {r.photos.length > 0 && (
                 <div className="mt-3 flex gap-2">
                   {r.photos.map((url, j) => (
-                    <img key={j} src={url} alt="" className="h-16 w-16 rounded-lg object-cover border border-border" />
+                    <img key={j} src={url} alt={`Photo ${j + 1} from ${r.userName}'s review`} className="h-16 w-16 rounded-lg object-cover border border-border" />
                   ))}
                 </div>
               )}

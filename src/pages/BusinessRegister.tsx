@@ -136,7 +136,8 @@ export default function BusinessRegister() {
             <div className="input mt-1 flex items-center gap-2">
               <Search size={16} className="text-muted" />
               <input className="w-full bg-transparent outline-none" value={geo ? geo.shortName : q}
-                onChange={(e) => { setQ(e.target.value); setGeo(undefined) }} placeholder="Search your address…" />
+                onChange={(e) => { setQ(e.target.value); setGeo(undefined) }} placeholder="Search your address…"
+                aria-label="Business address or location" />
               {searching && <Loader2 size={14} className="animate-spin text-primary" />}
             </div>
             {!geo && results.length > 0 && (
@@ -188,6 +189,8 @@ export default function BusinessRegister() {
                   </div>
                   <input type="range" min={0} max={10} value={scores[key]}
                     onChange={(e) => setScores((s) => ({ ...s, [key]: Number(e.target.value) }))}
+                    aria-label={`${label} accessibility score, ${scores[key]} out of 10`}
+                    aria-valuetext={`${scores[key]} out of 10`}
                     className="w-full accent-[#1a73e8]" />
                 </div>
               ))}
@@ -205,7 +208,7 @@ export default function BusinessRegister() {
             </button>
           </label>
 
-          {err && <p className="text-sm text-alert">{err}</p>}
+          {err && <p role="alert" className="text-sm text-alert">{err}</p>}
           <button disabled={!valid || busy} onClick={submit} className="btn-primary w-full disabled:opacity-50">
             {busy ? <Loader2 className="animate-spin" size={16} /> : <Megaphone size={16} />}
             {sponsored ? 'Publish sponsored listing' : 'Publish free listing'}

@@ -51,7 +51,7 @@ export default function ReviewForm({ placeId, onDone }: { placeId?: string; onDo
     }
   }
 
-  if (done) return <p className="py-6 text-center text-primary">Thanks — your review is live ✓</p>
+  if (done) return <p role="status" aria-live="polite" className="py-6 text-center text-primary">Thanks — your review is live ✓</p>
 
   return (
     <div className="space-y-4">
@@ -75,6 +75,8 @@ export default function ReviewForm({ placeId, onDone }: { placeId?: string; onDo
             <input
               type="range" min={0} max={10} value={scores[key]}
               onChange={(e) => setScores((s) => ({ ...s, [key]: Number(e.target.value) }))}
+              aria-label={`${label} rating, ${scores[key]} out of 10`}
+              aria-valuetext={`${scores[key]} out of 10`}
               className="w-full accent-[#0ABFBF]"
             />
           </div>
@@ -98,7 +100,7 @@ export default function ReviewForm({ placeId, onDone }: { placeId?: string; onDo
         </div>
       </div>
 
-      {err && <p className="text-sm text-alert">{err}</p>}
+      {err && <p role="alert" className="text-sm text-alert">{err}</p>}
       <button disabled={!valid || busy} onClick={submit} className="btn-primary w-full disabled:opacity-50">
         {busy ? <Loader2 className="animate-spin" size={16} /> : null} Submit review
       </button>

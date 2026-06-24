@@ -47,7 +47,7 @@ export default function Admin() {
         <div className="grid gap-3 sm:grid-cols-2">
           {queue.map((a) => (
             <div key={a.id} className="card flex gap-3 p-3">
-              <img src={a.photoUrl} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover" />
+              <img src={a.photoUrl} alt={`Photo evidence for report at ${placeName(a.placeId)}`} className="h-20 w-20 shrink-0 rounded-lg object-cover" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{placeName(a.placeId)}</p>
                 <p className="truncate text-xs text-muted">{a.description}</p>

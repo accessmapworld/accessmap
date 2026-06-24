@@ -78,7 +78,7 @@ export default function Profile() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           {user.photoURL ? (
-            <img src={user.photoURL} alt="" className="h-16 w-16 rounded-full border border-border" />
+            <img src={user.photoURL} alt={`${user.displayName}'s profile photo`} className="h-16 w-16 rounded-full border border-border" />
           ) : (
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-2xl font-semibold text-primary">
               {user.displayName.charAt(0)}

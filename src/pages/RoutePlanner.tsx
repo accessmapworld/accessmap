@@ -69,10 +69,11 @@ function GeoInput({ label, value, color, onPick, onClear }: {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Type an address, or use the buttons →"
+          aria-label={label}
         />
-        {busy && <Loader2 size={14} className="animate-spin text-primary" />}
+        {busy && <Loader2 size={14} className="animate-spin text-primary" aria-label="Searching" />}
         {q && !busy && (
-          <button onClick={() => { setQ(''); setResults([]); onClear() }} className="rounded-full p-1 text-muted hover:bg-bg hover:text-ink" title="Clear"><X size={14} /></button>
+          <button onClick={() => { setQ(''); setResults([]); onClear() }} className="rounded-full p-1 text-muted hover:bg-bg hover:text-ink" title="Clear" aria-label={`Clear ${label}`}><X size={14} /></button>
         )}
         <span className="h-5 w-px bg-border" />
         <button onClick={useMyLocation} title="Use my location"

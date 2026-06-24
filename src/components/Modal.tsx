@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
+import { useFocusTrap } from '../lib/useFocusTrap'
 
 interface Props {
   open: boolean
@@ -9,6 +10,9 @@ interface Props {
 }
 
 export default function Modal({ open, onClose, title, children }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(open)
+  const titleId = useId()
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -18,15 +22,21 @@ export default function Modal({ open, onClose, title, children }: Props) {
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+    <div
+      className="fixed inset-0 z-[1000] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      onClick={onClose}
+    >
       <div
+        ref={trapRef}
         className="card max-h-[92vh] w-full max-w-lg animate-page-in overflow-y-auto rounded-b-none sm:rounded-2xl"
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-border bg-card px-5 py-4">
-          <h2 className="font-display text-xl">{title}</h2>
-          <button onClick={onClose} className="text-muted hover:text-ink" aria-label="Close">
+          <h2 id={titleId} className="font-display text-xl">{title}</h2>
+          <button onClick={onClose} className="text-muted hover:text-ink" aria-label="Close dialog">
             <X size={20} />
           </button>
         </div>

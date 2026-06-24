@@ -50,7 +50,7 @@ export default function ReportForm({ placeId, onDone }: { placeId?: string; onDo
     }
   }
 
-  if (done) return <p className="py-6 text-center text-alert">Report submitted — it’s now live on the place ⚠</p>
+  if (done) return <p role="status" aria-live="polite" className="py-6 text-center text-alert">Report submitted — it’s now live on the place ⚠</p>
 
   return (
     <div className="space-y-4">
@@ -87,7 +87,7 @@ export default function ReportForm({ placeId, onDone }: { placeId?: string; onDo
         </div>
       </div>
 
-      {err && <p className="text-sm text-alert">{err}</p>}
+      {err && <p role="alert" className="text-sm text-alert">{err}</p>}
       <button disabled={!valid || busy} onClick={submit} className="btn-alert w-full disabled:opacity-50">
         {busy ? <Loader2 className="animate-spin" size={16} /> : null} Submit report
       </button>

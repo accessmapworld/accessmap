@@ -13,9 +13,9 @@ function timeAgo(ms: number) {
 }
 
 const YN = ({ v }: { v?: boolean }) =>
-  v === true  ? <span className="inline-flex items-center gap-1 text-green-700"><CheckCircle2 size={13} /> Yes</span>
-  : v === false ? <span className="inline-flex items-center gap-1 text-red-600"><XCircle size={13} /> No</span>
-  : <span className="inline-flex items-center gap-1 text-muted"><MinusCircle size={13} /> Unknown</span>
+  v === true  ? <span className="inline-flex items-center gap-1 text-[#1e7d35]"><CheckCircle2 size={13} aria-hidden="true" /> Yes</span>
+  : v === false ? <span className="inline-flex items-center gap-1 text-[#c5221f]"><XCircle size={13} aria-hidden="true" /> No</span>
+  : <span className="inline-flex items-center gap-1 text-muted"><MinusCircle size={13} aria-hidden="true" /> Unknown</span>
 
 const RAMP_GRADIENT: Record<string, string> = { gentle: 'Gentle', moderate: 'Moderate', steep: 'Steep ⚠️' }
 const DOOR_TYPE: Record<string, string> = { automatic: 'Automatic', manual: 'Manual (light)', heavy_manual: 'Manual (heavy) ⚠️', revolving: 'Revolving ⚠️' }

@@ -39,7 +39,13 @@ export default function PhotoUpload({ onResult }: Props) {
   return (
     <div>
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Upload a photo — drag and drop, or activate to browse"
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); inputRef.current?.click() }
+        }}
         onDragOver={(e) => { e.preventDefault(); setDrag(true) }}
         onDragLeave={() => setDrag(false)}
         onDrop={(e) => {
@@ -72,7 +78,7 @@ export default function PhotoUpload({ onResult }: Props) {
           </>
         )}
         {busy && (
-          <p className="flex items-center gap-2 text-sm text-primary">
+          <p className="flex items-center gap-2 text-sm text-primary" role="status" aria-live="polite">
             <Loader2 className="animate-spin" size={16} /> Verifying with AI…
           </p>
         )}
@@ -85,6 +91,8 @@ export default function PhotoUpload({ onResult }: Props) {
         type="file"
         accept="image/*"
         className="hidden"
+        aria-hidden="true"
+        tabIndex={-1}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handle(f) }}
       />
     </div>

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, ChevronRight, Check, Sparkles } from 'lucide-react'
 import type { NeedsProfile } from '../types'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import {
   DEFAULT_PROFILE, hasProfile,
   mobilityLabel, hearingLabel, visionLabel, sensoryLabel,
@@ -52,6 +53,13 @@ export default function NeedsSetup({ onClose }: Props) {
   const [draft, setDraft] = useState<NeedsProfile>({ ...existing })
   const [stepIdx, setStepIdx] = useState(0)
   const step = STEPS[stepIdx]
+  const trapRef = useFocusTrap<HTMLDivElement>(true)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   const firstName = draft.name.trim().split(' ')[0] || ''
 
   function next() { setStepIdx((i) => Math.min(i + 1, STEPS.length - 1)) }
@@ -73,7 +81,7 @@ export default function NeedsSetup({ onClose }: Props) {
       role="dialog" aria-modal="true" aria-labelledby="needs-title"
       className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
     >
-      <div className="card w-full max-w-md overflow-hidden">
+      <div ref={trapRef} className="card w-full max-w-md overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">

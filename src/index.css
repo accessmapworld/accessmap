@@ -25,6 +25,22 @@ h1, h2, h3 {
   letter-spacing: -0.02em;
 }
 
+/* ── Global keyboard focus ring (WCAG 2.4.7) ─────────────────────────
+   Applies to every interactive element, including those that set
+   `outline-none`. Mouse clicks don't trigger :focus-visible, so this
+   never shows on pointer interaction — only keyboard/AT navigation. */
+:focus-visible {
+  outline: 2px solid #1a73e8 !important;
+  outline-offset: 2px !important;
+  border-radius: 4px;
+}
+/* Inputs/textareas keep their soft inner ring AND get the outline */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 1px !important;
+}
+
 /* Bright Google-Maps-style tiles (no dark filter) */
 .leaflet-container {
   background: #e8eaed;

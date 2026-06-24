@@ -36,7 +36,7 @@ export default function SpecsForm({ placeId, onDone }: Props) {
     } catch { /* */ } finally { setBusy(false) }
   }
 
-  if (done) return <p className="py-6 text-center text-primary font-medium">Thanks — your info is live ✓</p>
+  if (done) return <p role="status" aria-live="polite" className="py-6 text-center text-primary font-medium">Thanks — your info is live ✓</p>
 
   const SECTIONS: { key: Section; label: string }[] = [
     { key: 'entrance', label: 'Entrance' },
@@ -130,8 +130,9 @@ export default function SpecsForm({ placeId, onDone }: Props) {
           <div className="mt-2 flex flex-wrap gap-2">
             {photos.map((url, i) => (
               <div key={i} className="relative">
-                <img src={url} alt="" className="h-16 w-16 rounded-lg object-cover border border-border" />
+                <img src={url} alt={`Uploaded accessibility photo ${i + 1}`} className="h-16 w-16 rounded-lg object-cover border border-border" />
                 <button onClick={() => setPhotos(p => p.filter((_, j) => j !== i))}
+                  aria-label={`Remove photo ${i + 1}`}
                   className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-alert text-white text-xs">×</button>
               </div>
             ))}

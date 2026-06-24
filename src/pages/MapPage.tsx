@@ -15,6 +15,7 @@ import { searchPlaces, type GeoResult } from '../lib/nominatim'
 import { CATEGORIES, categoryColor, nearbyByCategory, haversineKm, type Poi, type CategoryKey } from '../lib/overpass'
 import { batchWikiImages } from '../lib/wikipedia'
 import { googleMapsTo } from '../lib/maps'
+import { useFocusTrap } from '../lib/useFocusTrap'
 import { scorePlace, hasProfile } from '../lib/compatibility'
 import { useStore } from '../store/useStore'
 import type { Place, Alert, Dimension } from '../types'
@@ -87,10 +88,19 @@ export default function MapPage() {
     try { return sessionStorage.getItem('am.introSeen') !== '1' } catch { return true }
   })
 
+  const introTrapRef = useFocusTrap<HTMLDivElement>(showIntro)
+
   function dismissIntro() {
     setShowIntro(false)
     try { sessionStorage.setItem('am.introSeen', '1') } catch { /* */ }
   }
+
+  useEffect(() => {
+    if (!showIntro) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && dismissIntro()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showIntro])
 
   const abortRef = useRef<AbortController | null>(null)
   const poiAbort = useRef<AbortController | null>(null)
@@ -756,7 +766,7 @@ export default function MapPage() {
           aria-modal="true"
           aria-labelledby="intro-title"
         >
-          <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
+          <div ref={introTrapRef} className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
             {/* Header */}
             <div className="bg-gradient-to-br from-[#0ABFBF] to-[#1a73e8] px-7 py-7 text-center text-white">
               <div className="mx-auto mb-3 flex justify-center">

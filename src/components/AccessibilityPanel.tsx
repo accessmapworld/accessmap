@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Accessibility, X, Type, Contrast, BookOpen, Eye, Pause } from 'lucide-react'
+import { useFocusTrap } from '../lib/useFocusTrap'
 
 type Settings = {
   large: boolean
@@ -26,6 +27,14 @@ const OPTIONS: { key: keyof Settings; label: string; desc: string; icon: typeof 
 export default function AccessibilityPanel() {
   const [open, setOpen] = useState(false)
   const [s, setS] = useState<Settings>(load)
+  const trapRef = useFocusTrap<HTMLDivElement>(open)
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
 
   useEffect(() => {
     const root = document.documentElement
@@ -55,9 +64,11 @@ export default function AccessibilityPanel() {
       {open && (
         <div className="fixed inset-0 z-[870] flex justify-end bg-black/30" onClick={() => setOpen(false)}>
           <div
+            ref={trapRef}
             className="h-full w-full max-w-sm animate-[pageIn_280ms_ease-out] overflow-y-auto bg-card p-5 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
+            aria-modal="true"
             aria-label="Accessibility settings"
           >
             <div className="flex items-center justify-between">
