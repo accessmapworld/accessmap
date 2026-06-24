@@ -77,15 +77,26 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
     );
     out center tags 5;`
 
-  let data: any
+  let elements: any[] = []
   try {
-    data = await overpassQuery(q1, signal)
-    if (!(data?.elements?.length)) {
-      data = await overpassQuery(q2, signal)
+    const data1 = await overpassQuery(q1, signal)
+    elements = data1?.elements ?? []
+    // If no named elements, or the best one has no a11y tags, also try wheelchair query
+    const bestA11yScore = elements.reduce((best: number, el: any) => {
+      const t: Record<string, string> = el.tags ?? {}
+      return Math.max(best, A11Y_TAGS.filter(k => t[k] && t[k] !== 'no').length)
+    }, 0)
+    if (elements.length === 0 || bestA11yScore === 0) {
+      const data2 = await overpassQuery(q2, signal)
+      const extra: any[] = data2?.elements ?? []
+      // Merge: add any element from q2 not already in elements (by id)
+      const seen = new Set(elements.map((e: any) => `${e.type}/${e.id}`))
+      for (const el of extra) {
+        if (!seen.has(`${el.type}/${el.id}`)) elements.push(el)
+      }
     }
   } catch { return null }
 
-  const elements: any[] = data?.elements ?? []
   if (elements.length === 0) return null
 
   // Pick the element with the most accessibility-relevant tags
@@ -176,6 +187,33 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
   if (derived.hasDisabledParking != null) specs.hasDisabledParking = derived.hasDisabledParking
   if (derived.disabledParkingSpaces != null) specs.disabledParkingSpaces = derived.disabledParkingSpaces
 
+  // ── Wikidata enrichment (image + accessibility data) ─────────────
+  // OSM elements often have a `wikidata` tag (e.g. Q12345) linking to structured data
+  let wikidataImage: string | undefined
+  if (t.wikidata && /^Q\d+$/.test(t.wikidata.trim())) {
+    try {
+      const wd = await Promise.race([
+        fetch(`https://www.wikidata.org/wiki/Special:EntityData/${t.wikidata.trim()}.json`).then(r => r.json()),
+        new Promise<null>(res => setTimeout(() => res(null), 3000)),
+      ])
+      if (wd) {
+        const entity = wd?.entities?.[t.wikidata.trim()]
+        // P18 = image, P154 = logo
+        const imgClaim = entity?.claims?.P18?.[0]?.mainsnak?.datavalue?.value
+        if (imgClaim) {
+          const file = (imgClaim as string).replace(/ /g, '_')
+          wikidataImage = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=800`
+        }
+        // P2846 = accessible to people with disabilities
+        const a11yClaim = entity?.claims?.P2846
+        if (a11yClaim?.length && !t.wheelchair) {
+          // Wikidata says it's accessible — patch the spec
+          specs.hasStepFreeEntrance = true
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
   // ── Image ─────────────────────────────────────────────────────────
   let imageUrl: string | undefined
   if (t.image && /^https?:\/\//.test(t.image)) {
@@ -183,6 +221,8 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
   } else if (t.wikimedia_commons) {
     const file = t.wikimedia_commons.replace(/^(File:|Category:)/, '').trim()
     imageUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/ /g, '_'))}?width=800`
+  } else if (wikidataImage) {
+    imageUrl = wikidataImage
   } else if (t.name) {
     // Race Wikipedia against a 2s timeout so it never blocks OSM details from rendering
     imageUrl = await Promise.race([

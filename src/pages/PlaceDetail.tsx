@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   MapPin as MapPinIcon, Flag, Star, Route as RouteIcon,
@@ -65,7 +65,14 @@ export default function PlaceDetail() {
   const needsProfile = useStore((s) => s.needsProfile)
   const saved = user?.savedPlaces.includes(id)
 
+  const osmAbort = useRef<AbortController | null>(null)
+
   async function load() {
+    // Cancel any in-flight OSM fetch from a previous render
+    osmAbort.current?.abort()
+    const ac = new AbortController()
+    osmAbort.current = ac
+
     const p = await getPlace(id)
     if (p) {
       setPlace(p)
@@ -74,9 +81,9 @@ export default function PlaceDetail() {
       setAlerts(await getAlerts(id))
       setSpecs(await getSpecs(id))
       setOsmLoading(true)
-      fetchOsmDetails(p.lat, p.lng)
-        .then(setOsmData)
-        .finally(() => setOsmLoading(false))
+      fetchOsmDetails(p.lat, p.lng, ac.signal)
+        .then(d => { if (!ac.signal.aborted) setOsmData(d) })
+        .finally(() => { if (!ac.signal.aborted) setOsmLoading(false) })
     } else {
       // OSM POI — lat/lng/name passed as query params
       const lat = parseFloat(searchParams.get('lat') ?? '')
@@ -92,17 +99,21 @@ export default function PlaceDetail() {
         })
         setSpecs(await getSpecs(id))
         setOsmLoading(true)
-        fetchOsmDetails(lat, lng)
+        fetchOsmDetails(lat, lng, ac.signal)
           .then(d => {
+            if (ac.signal.aborted) return
             setOsmData(d)
             // Patch name from OSM if available
             if (d?.name) setPlace(prev => prev ? { ...prev, name: d.name!, address: d.extras.find(e => e.label === 'Address (OSM)')?.value ?? '' } : prev)
           })
-          .finally(() => setOsmLoading(false))
+          .finally(() => { if (!ac.signal.aborted) setOsmLoading(false) })
       }
     }
   }
-  useEffect(() => { load() }, [id])
+  useEffect(() => {
+    load()
+    return () => { osmAbort.current?.abort() }
+  }, [id])
 
   // Programmatic JSON-LD + SEO title for this venue (§6.3 — organic SEO moat)
   useEffect(() => {
@@ -380,7 +391,7 @@ export default function PlaceDetail() {
         // Ramp
         if (s.rampPresent === true) {
           const rampParts: string[] = ['Ramp']
-          if (s.rampGradientPct != null) rampParts.push(`${s.rampGradientPct.toFixed(0)}% gradient (${s.rampGradient ?? ''})`)
+          if (s.rampGradientPct != null) rampParts.push(`${s.rampGradientPct.toFixed(0)}% gradient${s.rampGradient ? ` (${s.rampGradient})` : ''}`)
           else if (s.rampGradient) rampParts.push(s.rampGradient)
           if (s.rampWidthCm != null) rampParts.push(`${s.rampWidthCm} cm wide`)
           features.push(<FeatureBadge key="ramp" icon={ArrowUpDown} label={rampParts.join(' · ')} positive />)
@@ -492,7 +503,7 @@ export default function PlaceDetail() {
               <a href={osmData.website} target="_blank" rel="noreferrer" className="truncate text-primary hover:underline">{osmData.website.replace(/^https?:\/\//, '')}</a>
             </div>
           )}
-          {osmData.extras.filter(e => !['Accessibility note'].includes(e.label)).map(({ label, value }) => (
+          {osmData.extras.filter(e => !['Accessibility note', 'Hearing loop', 'Braille menu', 'Quiet / sensory room', 'Changing Place', 'Assistance dogs', 'Wheelchair seating', 'Min. corridor width'].includes(e.label)).map(({ label, value }) => (
             <div key={label} className="flex items-start gap-3 px-4 py-3 text-sm">
               <Info size={15} className="mt-0.5 shrink-0 text-muted" />
               <div>

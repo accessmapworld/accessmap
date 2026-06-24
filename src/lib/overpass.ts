@@ -410,6 +410,7 @@ export async function nearbyByCategory(
     (
       node${cat.selector}["name"](around:${radius},${lat},${lng});
       way${cat.selector}["name"](around:${radius},${lat},${lng});
+      relation${cat.selector}["name"](around:${radius},${lat},${lng});
     );
     out center tags 60;`
   let data: any
