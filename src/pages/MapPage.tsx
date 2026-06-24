@@ -70,19 +70,26 @@ export default function MapPage() {
     toastTimer.current = setTimeout(() => setLocToast(null), 6000)
   }
 
-  // IP fallback — try two services so one outage doesn't break everything
+  // IP geolocation — tries 4 services with a 4s timeout each
   async function ipCoords(): Promise<[number, number] | null> {
-    const services = [
+    const to = (ms: number) => new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
+    const services: (() => Promise<[number, number] | null>)[] = [
       async () => {
-        const d = await fetch('https://get.geojs.io/v1/ip/geo.json').then(r => r.json())
+        const d: any = await Promise.race([fetch('https://get.geojs.io/v1/ip/geo.json').then(r => r.json()), to(4000)])
         const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude)
-        if (!isNaN(lat) && !isNaN(lng)) return [lat, lng] as [number, number]
-        return null
+        return (!isNaN(lat) && !isNaN(lng)) ? [lat, lng] : null
       },
       async () => {
-        const d = await fetch('https://ipapi.co/json/').then(r => r.json())
-        if (d.latitude && d.longitude) return [d.latitude, d.longitude] as [number, number]
-        return null
+        const d: any = await Promise.race([fetch('https://ip-api.com/json/?fields=lat,lon,status').then(r => r.json()), to(4000)])
+        return (d.status === 'success' && d.lat && d.lon) ? [d.lat, d.lon] : null
+      },
+      async () => {
+        const d: any = await Promise.race([fetch('https://freeipapi.com/api/json').then(r => r.json()), to(4000)])
+        return (d.latitude && d.longitude) ? [d.latitude, d.longitude] : null
+      },
+      async () => {
+        const d: any = await Promise.race([fetch('https://ipapi.co/json/').then(r => r.json()), to(4000)])
+        return (d.latitude && d.longitude) ? [d.latitude, d.longitude] : null
       },
     ]
     for (const fn of services) {
@@ -178,11 +185,12 @@ export default function MapPage() {
         if (c) finish(c[0], c[1], false, err.code === 1)
         else {
           setLocating(false)
+          // If everything fails, just tell them to search — don't show a dead-end error
           showToast(
             err.code === 1
-              ? 'Location permission denied. Enable it in your browser settings, or search for a place.'
-              : 'Could not determine your location. Try searching for a place.',
-            'error',
+              ? 'Location blocked — enable it in your browser, or type a place in the search bar.'
+              : 'Location unavailable — type a city or place in the search bar to get started.',
+            'info',
           )
         }
       },
