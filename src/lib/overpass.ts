@@ -158,58 +158,64 @@ export function deriveAccess(tags: Record<string, string>, category?: CategoryKe
   const { terrain, surface } = terrainFrom(tags)
 
   // ── Ramp ─────────────────────────────────────────────────────────
-  const rampRaw = (tags['ramp:wheelchair'] || tags.ramp || '').toLowerCase()
-  const hasRamp = ['yes', 'up', 'down', 'both'].includes(rampRaw)
+  const rampRaw = (tags['ramp:wheelchair'] || tags['ramp:wheelchair:access'] || tags.ramp || '').toLowerCase()
+  const hasRamp = ['yes', 'up', 'down', 'both', 'separate'].includes(rampRaw)
   const rampNote = tags['ramp:wheelchair:description'] || tags['ramp:description'] || undefined
 
   const inclineRaw = parseFloat((tags.incline || tags['ramp:incline'] || '').replace(/[%°]/g, ''))
   const rampGradient = !isNaN(inclineRaw) ? Math.abs(inclineRaw) : undefined
   const steepIncline = rampGradient != null && rampGradient > 8
 
-  const rampWidthRaw = tags['ramp:width'] || tags['ramp:wheelchair:width']
+  const rampWidthRaw = tags['ramp:width'] || tags['ramp:wheelchair:width'] || tags['ramp:wheelchair:width:left'] || tags['ramp:wheelchair:width:right']
   const rampWidthCm = rampWidthRaw ? parseCm(rampWidthRaw) : undefined
-  const handrailRaw = (tags['ramp:handrail'] || tags.handrail || '').toLowerCase()
+  const handrailRaw = (tags['ramp:handrail'] || tags['ramp:wheelchair:handrail'] || tags.handrail || '').toLowerCase()
   const rampHasHandrail = ['yes', 'both', 'left', 'right'].includes(handrailRaw) ? true
     : handrailRaw === 'no' ? false : undefined
 
   // ── Steps / kerb ─────────────────────────────────────────────────
-  const stepCountRaw = parseInt(tags.step_count || tags['entrance:step_count'] || tags['steps:count'] || '')
+  const stepCountRaw = parseInt(tags.step_count || tags['entrance:step_count'] || tags['steps:count'] || tags['step_count:up'] || '')
   const stepCount = !isNaN(stepCountRaw) ? stepCountRaw : undefined
-  const stepHeightRaw = tags.step_height || tags['entrance:step_height'] || tags['kerb:height']
+  const stepHeightRaw = tags.step_height || tags['entrance:step_height'] || tags['kerb:height'] || tags['step:height']
   const stepHeightCm = stepHeightRaw ? parseCm(stepHeightRaw) : undefined
-  const kerbType = tags.kerb || tags.curb || undefined
+  // Normalize kerb type values
+  const kerbRaw = tags.kerb || tags.curb || tags['kerb:type'] || undefined
+  const kerbType = kerbRaw ? kerbRaw.replace(/_/g, ' ') : undefined
 
   // ── Door / entrance ───────────────────────────────────────────────
-  const doorRaw = (tags.automatic_door || tags['door:automatic'] || '').toLowerCase()
-  const doorType = doorRaw === 'yes' || doorRaw === 'button' || doorRaw === 'motion'
+  const doorRaw = (tags.automatic_door || tags['door:automatic'] || tags['entrance:automatic_door'] || '').toLowerCase()
+  const doorType = doorRaw === 'yes' || doorRaw === 'button' || doorRaw === 'motion' || doorRaw === 'sensor'
     ? 'Automatic'
-    : (tags.door === 'hinged' || tags.door === 'manual') ? 'Manual' : undefined
-  // Only use specific door-width tags — not the generic 'width' (which is road/path width)
-  const doorWidthRaw = tags['door:width'] || tags['entrance:width']
+    : (tags.door === 'hinged' || tags.door === 'manual' || tags.door === 'swing') ? 'Manual'
+    : (tags.door === 'revolving') ? 'Revolving'
+    : undefined
+  // Only use specific door-width tags — never the generic 'width' (road/path width)
+  const doorWidthRaw = tags['door:width'] || tags['entrance:width'] || tags['door:width:clear']
   const doorWidthCm = doorWidthRaw ? parseCm(doorWidthRaw) : undefined
-  const entranceLevel = tags.level || tags['entrance:level'] || undefined
+  const entranceLevel = tags.level || tags['entrance:level'] || tags['access:level'] || undefined
 
   // ── Lift / elevator ───────────────────────────────────────────────
-  const hasLift = (tags.lift || tags.elevator || '').toLowerCase() === 'yes'
-  const liftWidthCm = parseCm(tags['lift:width'] || tags['elevator:width'] || '') || undefined
-  const liftDepthCm = parseCm(tags['lift:depth'] || tags['elevator:depth'] || '') || undefined
+  const liftRaw = (tags.lift || tags.elevator || tags['elevator:access'] || tags['lift:access'] || '').toLowerCase()
+  const hasLift = liftRaw === 'yes' || liftRaw === 'wheelchair'
+    || (tags.highway === 'elevator')
+  const liftWidthCm = parseCm(tags['lift:width'] || tags['elevator:width'] || tags['lift:door:width'] || '') || undefined
+  const liftDepthCm = parseCm(tags['lift:depth'] || tags['elevator:depth'] || tags['lift:length'] || '') || undefined
 
   // ── Parking ───────────────────────────────────────────────────────
-  const parkingRaw = tags['parking:disabled'] || tags['capacity:disabled'] || ''
+  const parkingRaw = tags['parking:disabled'] || tags['capacity:disabled'] || tags['amenity:parking:disabled'] || ''
   const hasDisabledParking = !!parkingRaw && parkingRaw !== 'no' && parkingRaw !== '0'
   const disabledParkingSpaces = (() => {
-    const n = parseInt(tags['capacity:disabled'] || '')
+    const n = parseInt(tags['capacity:disabled'] || tags['parking:disabled:count'] || '')
     return !isNaN(n) && n > 0 ? n : undefined
   })()
 
   // ── Additional accessibility details ──────────────────────────────
-  const hearingLoop = (tags['hearing_loop'] || tags['deaf:loop'] || '').toLowerCase() === 'yes'
-  const brailleMenu = (tags['menu:braille'] || tags['braille'] || '').toLowerCase() === 'yes'
-  const visualImpaired = (tags['blind:sign'] || tags['tactile_writing'] || '').toLowerCase() === 'yes'
-  const wheelchairSeating = (tags['wheelchair:seating'] || tags['capacity:wheelchair'] || '')
+  const hearingLoop = (tags['hearing_loop'] || tags['deaf:loop'] || tags['induction_loop'] || '').toLowerCase() === 'yes'
+  const brailleMenu = (tags['menu:braille'] || tags['braille'] || tags['braille:menu'] || '').toLowerCase() === 'yes'
+  const visualImpaired = (tags['blind:sign'] || tags['tactile_writing'] || tags['speech_output'] || '').toLowerCase() === 'yes'
+  const wheelchairSeating = (tags['wheelchair:seating'] || tags['capacity:wheelchair'] || tags['seating:wheelchair'] || '')
   const hasWheelchairSeating = !!wheelchairSeating && wheelchairSeating !== 'no' && wheelchairSeating !== '0'
   const wheelchairSeatingCount = (() => {
-    const n = parseInt(tags['capacity:wheelchair'] || '')
+    const n = parseInt(tags['capacity:wheelchair'] || tags['seating:wheelchair'] || '')
     return !isNaN(n) && n > 0 ? n : undefined
   })()
   const quietRoom = (tags['quiet_room'] || tags['sensory_room'] || '').toLowerCase() === 'yes'
