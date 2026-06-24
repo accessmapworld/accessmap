@@ -1,7 +1,8 @@
 import type { AccessSpecs } from '../types'
+import type { OsmData } from '../lib/osmDetails'
 import { CheckCircle2, XCircle, MinusCircle } from 'lucide-react'
 
-interface Props { specs: AccessSpecs[] }
+interface Props { specs: AccessSpecs[]; osmData?: OsmData }
 
 function timeAgo(ms: number) {
   const d = Math.floor((Date.now() - ms) / 86400000)
@@ -20,8 +21,10 @@ const RAMP_GRADIENT: Record<string, string> = { gentle: 'Gentle', moderate: 'Mod
 const DOOR_TYPE: Record<string, string> = { automatic: 'Automatic', manual: 'Manual (light)', heavy_manual: 'Manual (heavy) ⚠️', revolving: 'Revolving ⚠️' }
 const SURFACE: Record<string, string> = { smooth: 'Smooth / tiles', carpet: 'Carpet', uneven: 'Uneven', cobblestone: 'Cobblestone ⚠️', gravel: 'Gravel ⚠️' }
 
-export default function SpecsPanel({ specs }: Props) {
-  if (specs.length === 0) return (
+export default function SpecsPanel({ specs, osmData }: Props) {
+  const hasOsm = osmData && (Object.keys(osmData.specs).length > 0 || osmData.extras.length > 0)
+
+  if (specs.length === 0 && !hasOsm) return (
     <p className="py-4 text-sm text-muted">No physical specs yet — be the first to add details!</p>
   )
 
@@ -33,7 +36,55 @@ export default function SpecsPanel({ specs }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Photo gallery */}
+      {/* OSM baseline */}
+      {hasOsm && (() => {
+        const s = osmData!.specs
+        const osmId = osmData!.osmId
+        return (
+          <div className="rounded-xl border border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/30 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">
+                📍 From OpenStreetMap
+              </p>
+              {osmId && (
+                <a
+                  href={`https://www.openstreetmap.org/${osmId}`}
+                  target="_blank" rel="noreferrer"
+                  className="text-[10px] text-blue-500 hover:underline"
+                >
+                  View on OSM ↗
+                </a>
+              )}
+            </div>
+            <div className="divide-y divide-blue-100 dark:divide-blue-900">
+              {s.hasStepFreeEntrance != null && <Row label="Step-free entrance"><YN v={s.hasStepFreeEntrance} /></Row>}
+              {s.entranceStepCount != null && <Row label="Steps at entrance"><span>{s.entranceStepCount}</span></Row>}
+              {s.rampPresent != null && <Row label="Ramp"><YN v={s.rampPresent} /></Row>}
+              {s.rampGradient && <Row label="Ramp gradient"><span>{RAMP_GRADIENT[s.rampGradient]}</span></Row>}
+              {s.rampHasHandrails != null && <Row label="Ramp handrails"><YN v={s.rampHasHandrails} /></Row>}
+              {s.doorWidthCm && <Row label="Door width"><span>{s.doorWidthCm} cm</span></Row>}
+              {s.doorType && <Row label="Door type"><span>{DOOR_TYPE[s.doorType]}</span></Row>}
+              {s.hasLift != null && <Row label="Lift / elevator"><YN v={s.hasLift} /></Row>}
+              {s.liftDoorWidthCm && <Row label="Lift door width"><span>{s.liftDoorWidthCm} cm</span></Row>}
+              {s.hasAccessibleToilet != null && <Row label="Accessible toilet"><YN v={s.hasAccessibleToilet} /></Row>}
+              {s.toiletGrabRails != null && <Row label="Toilet grab rails"><YN v={s.toiletGrabRails} /></Row>}
+              {s.floorSurface && <Row label="Floor surface"><span>{SURFACE[s.floorSurface]}</span></Row>}
+              {s.hasTactilePaving != null && <Row label="Tactile paving"><YN v={s.hasTactilePaving} /></Row>}
+              {s.hasDisabledParking != null && <Row label="Disabled parking"><YN v={s.hasDisabledParking} /></Row>}
+              {osmData!.extras.map(({ label, value }) => (
+                <Row key={label} label={label}><span className="max-w-[160px] text-right break-words">{value}</span></Row>
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] text-blue-500">Data from OpenStreetMap contributors (ODbL)</p>
+          </div>
+        )
+      })()}
+
+      {/* Community contributions */}
+      {specs.length > 0 && <p className="text-xs font-semibold uppercase tracking-wide text-muted">👥 Community contributions</p>}
+
+      {specs.length > 0 && <>
+      {/* Community photo gallery */}
       {photos.length > 0 && (
         <div>
           <p className="label mb-2">Community photos</p>
@@ -90,6 +141,7 @@ export default function SpecsPanel({ specs }: Props) {
       <p className="text-xs text-muted">
         {specs.length} contribution{specs.length !== 1 ? 's' : ''} · last updated {timeAgo(specs[0].contributedAt)} by {specs[0].contributedBy}
       </p>
+      </>}
     </div>
   )
 }

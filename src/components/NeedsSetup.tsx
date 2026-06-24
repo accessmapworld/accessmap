@@ -52,7 +52,7 @@ export default function NeedsSetup({ onClose }: Props) {
   const [draft, setDraft] = useState<NeedsProfile>({ ...existing })
   const [stepIdx, setStepIdx] = useState(0)
   const step = STEPS[stepIdx]
-  const firstName = draft.name.trim().split(' ')[0] || 'there'
+  const firstName = draft.name.trim().split(' ')[0] || ''
 
   function next() { setStepIdx((i) => Math.min(i + 1, STEPS.length - 1)) }
   function back() { setStepIdx((i) => Math.max(i - 1, 0)) }
@@ -80,7 +80,7 @@ export default function NeedsSetup({ onClose }: Props) {
             <Sparkles size={18} className="text-primary" />
             <h2 id="needs-title" className="font-semibold">
               {step === 'name' ? 'Personalise your experience' :
-               step === 'done' ? `All set, ${firstName}!` :
+               step === 'done' ? (firstName ? `All set, ${firstName}!` : 'All set!') :
                'Your accessibility needs'}
             </h2>
           </div>

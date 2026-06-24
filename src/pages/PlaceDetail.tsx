@@ -14,6 +14,8 @@ import { scorePlace, hasProfile, beforeYouGo } from '../lib/compatibility'
 import MatchBadge from '../components/MatchBadge'
 import SpecsPanel from '../components/SpecsPanel'
 import SpecsForm from '../components/SpecsForm'
+import { fetchOsmDetails } from '../lib/osmDetails'
+import type { OsmData } from '../lib/osmDetails'
 import type { Place, Review, Alert, AccessSpecs } from '../types'
 
 function timeAgo(ms: number) {
@@ -29,6 +31,7 @@ export default function PlaceDetail() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [specs, setSpecs] = useState<AccessSpecs[]>([])
+  const [osmData, setOsmData] = useState<OsmData | null>(null)
   const [showReport, setShowReport] = useState(false)
   const [showReview, setShowReview] = useState(false)
   const [showSpecsForm, setShowSpecsForm] = useState(false)
@@ -38,10 +41,12 @@ export default function PlaceDetail() {
   const saved = user?.savedPlaces.includes(id)
 
   async function load() {
-    setPlace(await getPlace(id))
+    const [p] = await Promise.all([getPlace(id)])
+    setPlace(p)
     setReviews(await getReviews(id))
     setAlerts(await getAlerts(id))
     setSpecs(await getSpecs(id))
+    if (p) fetchOsmDetails(p.lat, p.lng).then(setOsmData)
   }
   useEffect(() => { load() }, [id])
 
@@ -177,6 +182,12 @@ export default function PlaceDetail() {
         <a href={googleMapsTo([place.lat, place.lng])} target="_blank" rel="noreferrer" className="gmaps-btn">
           <ExternalLink size={16} /> Google Maps
         </a>
+        <a
+          href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${place.lat},${place.lng}`}
+          target="_blank" rel="noreferrer" className="btn-ghost"
+        >
+          <ExternalLink size={16} /> Street View
+        </a>
       </div>
 
       {/* Physical specs */}
@@ -187,7 +198,7 @@ export default function PlaceDetail() {
             + Add / update
           </button>
         </div>
-        <SpecsPanel specs={specs} />
+        <SpecsPanel specs={specs} osmData={osmData ?? undefined} />
       </section>
 
       {/* Photo gallery */}
