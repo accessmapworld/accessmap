@@ -356,7 +356,7 @@ export const CATEGORIES: { key: CategoryKey; label: string; icon: LucideIcon; se
   { key: 'hotel',      label: 'Hotels',       icon: Hotel,         selector: '["tourism"="hotel"]',      color: '#1a73e8' },
   { key: 'hospital',   label: 'Hospitals',    icon: Cross,         selector: '["amenity"="hospital"]',   color: '#d33b8f' },
   { key: 'pharmacy',   label: 'Pharmacies',   icon: Pill,          selector: '["amenity"="pharmacy"]',   color: '#1e8e3e' },
-  { key: 'shop',       label: 'Shopping',     icon: ShoppingBag,   selector: '["shop"]',                 color: '#9334e6' },
+  { key: 'shop',       label: 'Shopping',     icon: ShoppingBag,   selector: '["shop"]["shop"!="no"]',   color: '#9334e6' },
   { key: 'school',     label: 'Schools',      icon: GraduationCap, selector: '["amenity"="school"]',     color: '#e37400' },
   { key: 'attraction', label: 'Attractions',  icon: Landmark,      selector: '["tourism"="attraction"]', color: '#12b5cb' },
   { key: 'park',       label: 'Parks',        icon: TreePine,      selector: '["leisure"="park"]',       color: '#34a853' },

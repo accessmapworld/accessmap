@@ -1,6 +1,9 @@
 import type { AccessSpecs } from '../types'
 import type { OsmData } from '../lib/osmDetails'
-import { CheckCircle2, XCircle, MinusCircle } from 'lucide-react'
+import {
+  CheckCircle2, XCircle, MinusCircle, DoorOpen, Zap, Toilet,
+  Car, Footprints, MapPin, ExternalLink,
+} from 'lucide-react'
 
 interface Props { specs: AccessSpecs[]; osmData?: OsmData }
 
@@ -13,13 +16,15 @@ function timeAgo(ms: number) {
 }
 
 const YN = ({ v }: { v?: boolean }) =>
-  v === true  ? <span className="inline-flex items-center gap-1 text-[#1e7d35]"><CheckCircle2 size={13} aria-hidden="true" /> Yes</span>
-  : v === false ? <span className="inline-flex items-center gap-1 text-[#c5221f]"><XCircle size={13} aria-hidden="true" /> No</span>
-  : <span className="inline-flex items-center gap-1 text-muted"><MinusCircle size={13} aria-hidden="true" /> Unknown</span>
+  v === true
+    ? <span className="inline-flex items-center gap-1 text-[#1e7d35] font-medium"><CheckCircle2 size={13} /> Yes</span>
+    : v === false
+    ? <span className="inline-flex items-center gap-1 text-[#c5221f] font-medium"><XCircle size={13} /> No</span>
+    : <span className="inline-flex items-center gap-1 text-[#9aa0a6]"><MinusCircle size={13} /> Unknown</span>
 
-const RAMP_GRADIENT: Record<string, string> = { gentle: 'Gentle', moderate: 'Moderate', steep: 'Steep ⚠️' }
-const DOOR_TYPE: Record<string, string> = { automatic: 'Automatic', manual: 'Manual (light)', heavy_manual: 'Manual (heavy) ⚠️', revolving: 'Revolving ⚠️' }
-const SURFACE: Record<string, string> = { smooth: 'Smooth / tiles', carpet: 'Carpet', uneven: 'Uneven', cobblestone: 'Cobblestone ⚠️', gravel: 'Gravel ⚠️' }
+const RAMP_GRADIENT: Record<string, string> = { gentle: 'Gentle (≤5%)', moderate: 'Moderate (5–10%)', steep: 'Steep (>10%) ⚠' }
+const DOOR_TYPE: Record<string, string> = { automatic: 'Automatic', manual: 'Manual', heavy_manual: 'Heavy manual ⚠', revolving: 'Revolving ⚠' }
+const SURFACE: Record<string, string> = { smooth: 'Smooth / tiles', carpet: 'Carpet', uneven: 'Uneven', cobblestone: 'Cobblestone ⚠', gravel: 'Gravel ⚠' }
 
 export default function SpecsPanel({ specs, osmData }: Props) {
   const hasOsm = osmData && (Object.keys(osmData.specs).length > 0 || osmData.extras.length > 0)
@@ -28,10 +33,8 @@ export default function SpecsPanel({ specs, osmData }: Props) {
     <p className="py-4 text-sm text-muted">No physical specs yet — be the first to add details!</p>
   )
 
-  // Merge: take the most recent answer for each field
   const merged: Partial<AccessSpecs> = {}
   for (const s of [...specs].reverse()) Object.assign(merged, s)
-
   const photos = specs.flatMap(s => s.photos ?? [])
 
   return (
@@ -40,128 +43,142 @@ export default function SpecsPanel({ specs, osmData }: Props) {
       {hasOsm && (() => {
         const s = osmData!.specs
         const osmId = osmData!.osmId
+        const rows: { label: string; value: React.ReactNode }[] = []
+        if (s.hasStepFreeEntrance != null) rows.push({ label: 'Step-free entrance', value: <YN v={s.hasStepFreeEntrance} /> })
+        if (s.entranceStepCount != null) rows.push({ label: 'Steps at entrance', value: <span>{s.entranceStepCount}</span> })
+        if (s.stepHeightCm) rows.push({ label: 'Step height', value: <span>{s.stepHeightCm} cm each</span> })
+        if (s.kerbType) rows.push({ label: 'Kerb type', value: <span className="capitalize">{s.kerbType}</span> })
+        if (s.rampPresent != null) rows.push({ label: 'Ramp', value: <YN v={s.rampPresent} /> })
+        if (s.rampGradient) rows.push({ label: 'Ramp gradient', value: <span>{RAMP_GRADIENT[s.rampGradient]}</span> })
+        if (s.rampWidthCm) rows.push({ label: 'Ramp width', value: <span>{s.rampWidthCm} cm</span> })
+        if (s.rampHasHandrails != null) rows.push({ label: 'Ramp handrails', value: <YN v={s.rampHasHandrails} /> })
+        if (s.doorWidthCm) rows.push({ label: 'Door clear width', value: <span>{s.doorWidthCm} cm</span> })
+        if (s.doorType) rows.push({ label: 'Door type', value: <span>{DOOR_TYPE[s.doorType]}</span> })
+        if (s.hasLift != null) rows.push({ label: 'Lift / elevator', value: <YN v={s.hasLift} /> })
+        if (s.liftDoorWidthCm) rows.push({ label: 'Lift door width', value: <span>{s.liftDoorWidthCm} cm</span> })
+        if (s.liftDepthCm) rows.push({ label: 'Lift depth', value: <span>{s.liftDepthCm} cm</span> })
+        if (s.hasAccessibleToilet != null) rows.push({ label: 'Accessible toilet', value: <YN v={s.hasAccessibleToilet} /> })
+        if (s.toiletGrabRails != null) rows.push({ label: 'Toilet grab rails', value: <YN v={s.toiletGrabRails} /> })
+        if (s.turningSpaceCm) rows.push({ label: 'WC turning space', value: <span>{s.turningSpaceCm} cm</span> })
+        if (s.floorSurface) rows.push({ label: 'Floor surface', value: <span>{SURFACE[s.floorSurface]}</span> })
+        if (s.hasTactilePaving != null) rows.push({ label: 'Tactile paving', value: <YN v={s.hasTactilePaving} /> })
+        if (s.hasDisabledParking != null) rows.push({ label: 'Disabled parking', value: <YN v={s.hasDisabledParking} /> })
+        if (s.disabledParkingSpaces) rows.push({ label: 'Parking spaces', value: <span>{s.disabledParkingSpaces}</span> })
+
         return (
-          <div className="rounded-xl border border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/30 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">
-                📍 From OpenStreetMap
-              </p>
+          <div className="overflow-hidden rounded-2xl border border-[#c2d7f5] bg-[#f0f6ff]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#c2d7f5]">
+              <div className="flex items-center gap-2">
+                <MapPin size={14} className="text-[#1a73e8]" />
+                <span className="text-xs font-semibold text-[#1a73e8] uppercase tracking-wide">OpenStreetMap data</span>
+              </div>
               {osmId && (
-                <a
-                  href={`https://www.openstreetmap.org/${osmId}`}
-                  target="_blank" rel="noreferrer"
-                  className="text-[10px] text-blue-500 hover:underline"
-                >
-                  View on OSM ↗
+                <a href={`https://www.openstreetmap.org/${osmId}`} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-1 text-[11px] text-[#1a73e8] hover:underline">
+                  Edit on OSM <ExternalLink size={10} />
                 </a>
               )}
             </div>
-            <div className="divide-y divide-blue-100 dark:divide-blue-900">
-              {s.hasStepFreeEntrance != null && <Row label="Step-free entrance"><YN v={s.hasStepFreeEntrance} /></Row>}
-              {s.entranceStepCount != null && <Row label="Steps at entrance"><span>{s.entranceStepCount}</span></Row>}
-              {s.rampPresent != null && <Row label="Ramp"><YN v={s.rampPresent} /></Row>}
-              {s.rampGradient && <Row label="Ramp gradient"><span>{RAMP_GRADIENT[s.rampGradient]}</span></Row>}
-              {s.rampHasHandrails != null && <Row label="Ramp handrails"><YN v={s.rampHasHandrails} /></Row>}
-              {s.doorWidthCm && <Row label="Door width"><span>{s.doorWidthCm} cm</span></Row>}
-              {s.doorType && <Row label="Door type"><span>{DOOR_TYPE[s.doorType]}</span></Row>}
-              {s.hasLift != null && <Row label="Lift / elevator"><YN v={s.hasLift} /></Row>}
-              {s.liftDoorWidthCm && <Row label="Lift door width"><span>{s.liftDoorWidthCm} cm</span></Row>}
-              {s.hasAccessibleToilet != null && <Row label="Accessible toilet"><YN v={s.hasAccessibleToilet} /></Row>}
-              {s.toiletGrabRails != null && <Row label="Toilet grab rails"><YN v={s.toiletGrabRails} /></Row>}
-              {s.floorSurface && <Row label="Floor surface"><span>{SURFACE[s.floorSurface]}</span></Row>}
-              {s.hasTactilePaving != null && <Row label="Tactile paving"><YN v={s.hasTactilePaving} /></Row>}
-              {s.hasDisabledParking != null && <Row label="Disabled parking"><YN v={s.hasDisabledParking} /></Row>}
-              {osmData!.extras.map(({ label, value }) => (
-                <Row key={label} label={label}><span className="max-w-[160px] text-right break-words">{value}</span></Row>
-              ))}
-            </div>
-            <p className="mt-2 text-[10px] text-blue-500">Data from OpenStreetMap contributors (ODbL)</p>
+            {rows.length > 0
+              ? <div className="divide-y divide-[#dce8f9]">
+                  {rows.map(({ label, value }) => (
+                    <div key={label} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <span className="text-[#5f6368]">{label}</span>
+                      <span className="font-medium text-[#202124]">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              : <p className="px-4 py-3 text-sm text-[#5f6368]">No detailed data in OpenStreetMap yet.</p>
+            }
+            <p className="px-4 py-2 text-[10px] text-[#9aa0a6] border-t border-[#dce8f9]">
+              OSM data © OpenStreetMap contributors (ODbL)
+            </p>
           </div>
         )
       })()}
 
       {/* Community contributions */}
-      {specs.length > 0 && <p className="text-xs font-semibold uppercase tracking-wide text-muted">👥 Community contributions</p>}
-
-      {specs.length > 0 && <>
-      {/* Community photo gallery */}
-      {photos.length > 0 && (
+      {specs.length > 0 && (
         <div>
-          <p className="label mb-2">Community photos</p>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {photos.map((url, i) => (
-              <img key={i} src={url} alt={`Accessibility photo ${i + 1}`}
-                className="h-28 w-28 shrink-0 rounded-xl object-cover border border-border" />
-            ))}
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-[#9aa0a6]">Community contributions</p>
+
+          {photos.length > 0 && (
+            <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+              {photos.map((url, i) => (
+                <img key={i} src={url} alt={`Accessibility photo ${i + 1}`}
+                  className="h-28 w-28 shrink-0 rounded-xl object-cover border border-[#e8eaed]" />
+              ))}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <SpecSection title="Entrance" icon={DoorOpen}>
+              <Row label="Step-free entrance"><YN v={merged.hasStepFreeEntrance} /></Row>
+              {merged.entranceStepCount != null && <Row label="Steps">{merged.entranceStepCount}</Row>}
+              {merged.stepHeightCm && <Row label="Step height">{merged.stepHeightCm} cm each</Row>}
+              <Row label="Ramp"><YN v={merged.rampPresent} /></Row>
+              {merged.rampGradient && <Row label="Ramp gradient">{RAMP_GRADIENT[merged.rampGradient]}</Row>}
+              {merged.rampHasHandrails != null && <Row label="Handrails"><YN v={merged.rampHasHandrails} /></Row>}
+              {merged.doorWidthCm && <Row label="Door width">{merged.doorWidthCm} cm</Row>}
+              {merged.doorType && <Row label="Door type">{DOOR_TYPE[merged.doorType]}</Row>}
+            </SpecSection>
+
+            <SpecSection title="Inside" icon={Zap}>
+              <Row label="Lift / elevator"><YN v={merged.hasLift} /></Row>
+              {merged.liftDoorWidthCm && <Row label="Lift door width">{merged.liftDoorWidthCm} cm</Row>}
+              {merged.corridorWidthCm && <Row label="Narrowest corridor">{merged.corridorWidthCm} cm</Row>}
+              <Row label="Accessible toilet"><YN v={merged.hasAccessibleToilet} /></Row>
+              {merged.hasAccessibleToilet && <Row label="Grab rails"><YN v={merged.toiletGrabRails} /></Row>}
+              {merged.turningSpaceCm && <Row label="WC turning space">{merged.turningSpaceCm} cm</Row>}
+            </SpecSection>
+
+            {(merged.floorSurface || merged.hasTactilePaving != null) && (
+              <SpecSection title="Surfaces" icon={Footprints}>
+                {merged.floorSurface && <Row label="Floor surface">{SURFACE[merged.floorSurface]}</Row>}
+                {merged.hasTactilePaving != null && <Row label="Tactile paving"><YN v={merged.hasTactilePaving} /></Row>}
+              </SpecSection>
+            )}
+
+            {(merged.hasDisabledParking != null || merged.parkingDistanceM != null) && (
+              <SpecSection title="Parking" icon={Car}>
+                <Row label="Disabled bays"><YN v={merged.hasDisabledParking} /></Row>
+                {merged.parkingDistanceM != null && <Row label="Distance to entrance">{merged.parkingDistanceM} m</Row>}
+              </SpecSection>
+            )}
           </div>
+
+          {merged.notes && (
+            <div className="mt-3 rounded-xl bg-[#f8f9fa] border border-[#e8eaed] p-3 text-sm text-[#5f6368] italic">
+              "{merged.notes}"
+            </div>
+          )}
+
+          <p className="mt-3 text-[11px] text-[#9aa0a6]">
+            {specs.length} contribution{specs.length !== 1 ? 's' : ''} · last updated {timeAgo(specs[0].contributedAt)} by {specs[0].contributedBy}
+          </p>
         </div>
       )}
-
-      {/* Entrance */}
-      <Section title="🚪 Entrance">
-        <Row label="Step-free entrance"><YN v={merged.hasStepFreeEntrance} /></Row>
-        {merged.entranceStepCount != null && <Row label="Steps at entrance"><span>{merged.entranceStepCount}</span></Row>}
-        <Row label="Ramp"><YN v={merged.rampPresent} /></Row>
-        {merged.rampGradient && <Row label="Ramp gradient"><span>{RAMP_GRADIENT[merged.rampGradient]}</span></Row>}
-        {merged.rampHasHandrails != null && <Row label="Ramp handrails"><YN v={merged.rampHasHandrails} /></Row>}
-        {merged.doorWidthCm && <Row label="Door width"><span>{merged.doorWidthCm} cm</span></Row>}
-        {merged.doorType && <Row label="Door type"><span>{DOOR_TYPE[merged.doorType]}</span></Row>}
-      </Section>
-
-      {/* Interior */}
-      <Section title="🏢 Inside">
-        <Row label="Lift / elevator"><YN v={merged.hasLift} /></Row>
-        {merged.liftDoorWidthCm && <Row label="Lift door width"><span>{merged.liftDoorWidthCm} cm</span></Row>}
-        {merged.corridorWidthCm && <Row label="Narrowest corridor"><span>{merged.corridorWidthCm} cm</span></Row>}
-        <Row label="Accessible toilet"><YN v={merged.hasAccessibleToilet} /></Row>
-        {merged.hasAccessibleToilet && <Row label="Toilet grab rails"><YN v={merged.toiletGrabRails} /></Row>}
-        {merged.turningSpaceCm && <Row label="Toilet turning space"><span>{merged.turningSpaceCm} cm</span></Row>}
-      </Section>
-
-      {/* Surfaces */}
-      {(merged.floorSurface || merged.hasTactilePaving != null) && (
-        <Section title="🛣️ Surfaces">
-          {merged.floorSurface && <Row label="Floor surface"><span>{SURFACE[merged.floorSurface]}</span></Row>}
-          {merged.hasTactilePaving != null && <Row label="Tactile paving"><YN v={merged.hasTactilePaving} /></Row>}
-        </Section>
-      )}
-
-      {/* Parking */}
-      {(merged.hasDisabledParking != null || merged.parkingDistanceM != null) && (
-        <Section title="🅿️ Parking">
-          <Row label="Disabled parking bays"><YN v={merged.hasDisabledParking} /></Row>
-          {merged.parkingDistanceM != null && <Row label="Distance to entrance"><span>{merged.parkingDistanceM} m</span></Row>}
-        </Section>
-      )}
-
-      {merged.notes && (
-        <div className="rounded-xl bg-bg p-3 text-sm text-muted italic">"{merged.notes}"</div>
-      )}
-
-      <p className="text-xs text-muted">
-        {specs.length} contribution{specs.length !== 1 ? 's' : ''} · last updated {timeAgo(specs[0].contributedAt)} by {specs[0].contributedBy}
-      </p>
-      </>}
     </div>
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function SpecSection({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
   return (
-    <div>
-      <p className="mb-2 text-xs font-semibold text-muted">{title}</p>
-      <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">
-        {children}
+    <div className="overflow-hidden rounded-xl border border-[#e8eaed]">
+      <div className="flex items-center gap-2 border-b border-[#e8eaed] bg-[#f8f9fa] px-3 py-2">
+        <Icon size={13} className="text-[#9aa0a6]" />
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#9aa0a6]">{title}</span>
       </div>
+      <div className="divide-y divide-[#f1f3f4]">{children}</div>
     </div>
   )
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between px-3 py-2 text-sm">
-      <span className="text-muted">{label}</span>
-      <span className="font-medium">{children}</span>
+    <div className="flex items-center justify-between px-3 py-2.5 text-sm">
+      <span className="text-[#5f6368]">{label}</span>
+      <span className="font-medium text-[#202124]">{children}</span>
     </div>
   )
 }
