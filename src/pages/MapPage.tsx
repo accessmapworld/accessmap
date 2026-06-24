@@ -135,10 +135,9 @@ export default function MapPage() {
         setLocating(false)
         if (c) {
           setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 12 })
-          showToast('Showing approximate area based on your IP address.', 'info')
           onDone?.(c)
         } else {
-          showToast('Location not available — search for a place to get started.', 'error')
+          showToast('Location unavailable — try searching for a place.', 'error')
         }
       })
       return
