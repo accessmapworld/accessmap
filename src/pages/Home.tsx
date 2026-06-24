@@ -179,6 +179,8 @@ export default function Home() {
         <nav className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <Link to="/map" className="hover:text-ink">Map</Link>
           <Link to="/business" className="hover:text-ink">For Business</Link>
+          <Link to="/councils" className="hover:text-ink">For Councils</Link>
+          <Link to="/security" className="hover:text-ink">Security</Link>
           <Link to="/report" className="hover:text-ink">Report an Issue</Link>
           <Link to="/privacy" className="hover:text-ink">Privacy Policy</Link>
           <Link to="/terms" className="hover:text-ink">Terms of Service</Link>

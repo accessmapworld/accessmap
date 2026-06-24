@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
   MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
@@ -10,7 +10,8 @@ import BrandPin from '../components/MapPin'
 import MapView from '../components/MapView'
 import { scoreColor } from '../components/ScoreRing'
 import { getPlaces, getAlerts } from '../lib/data'
-import { searchPlaces, type GeoResult } from '../lib/nominatim'
+import { searchPlaces, reverseGeocode, type GeoResult } from '../lib/nominatim'
+import EmptyStateCapture from '../components/EmptyStateCapture'
 import { CATEGORIES, categoryColor, nearbyByCategory, haversineKm, type Poi, type CategoryKey } from '../lib/overpass'
 import { batchWikiImages } from '../lib/wikipedia'
 import { googleMapsTo } from '../lib/maps'
@@ -19,6 +20,9 @@ import { useStore } from '../store/useStore'
 import type { Place, Alert } from '../types'
 
 export default function MapPage() {
+  const nav = useNavigate()
+  const [cityLabel, setCityLabel] = useState('')
+  const [emptyDismissed, setEmptyDismissed] = useState(false)
   const [places, setPlaces] = useState<Place[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null)
@@ -108,6 +112,12 @@ export default function MapPage() {
     )
   }
 
+  // Reverse-geocode the centred coords to label the area, and re-arm the empty-state capture
+  function noteArea(lat: number, lng: number) {
+    setEmptyDismissed(false)
+    reverseGeocode(lat, lng).then((g) => setCityLabel(g.shortName)).catch(() => {})
+  }
+
   // Silent startup: never show toasts, just do best-effort centering
   async function locateSilent() {
     if (!navigator?.geolocation) {
@@ -122,6 +132,7 @@ export default function MapPage() {
         setCenter([lat, lng])
         setFocus({ lat, lng, zoom: 15 })
         startWatch()
+        noteArea(lat, lng)
       },
       async () => {
         // GPS failed silently — try IP, no error shown
@@ -159,6 +170,7 @@ export default function MapPage() {
       }
       setCenter([lat, lng])
       setFocus({ lat, lng, zoom: precise ? 17 : 13 })
+      noteArea(lat, lng)
       if (!precise) {
         showToast(
           permDenied
@@ -273,6 +285,13 @@ export default function MapPage() {
     return places
   }, [showA11y, forMeOnly, places, needsProfile, profileActive])
 
+  // "Ghost town" detection: are there any AccessMap accessible places near the view?
+  const nearbyAccessibleCount = useMemo(() => {
+    if (!center) return null
+    return places.filter((p) => haversineKm(center, [p.lat, p.lng]) <= 40).length
+  }, [places, center])
+  const showEmptyCapture = !!center && !panelOpen && !emptyDismissed && nearbyAccessibleCount === 0
+
   const sortedPois = useMemo(() => {
     const dist = (p: Poi) => (center ? haversineKm(center, [p.lat, p.lng]) : 0)
     return [...pois].sort((a, b) => {
@@ -300,6 +319,15 @@ export default function MapPage() {
           onSelect={(p) => setFocus({ lat: p.lat, lng: p.lng, zoom: 16 })}
         />
       </div>
+
+      {/* Empty-state market capture: turn a "ghost town" view into a lead (§1.4) */}
+      {showEmptyCapture && (
+        <EmptyStateCapture
+          area={cityLabel}
+          onMapFirst={() => nav('/business')}
+          onDismiss={() => setEmptyDismissed(true)}
+        />
+      )}
 
       {/* OSM attribution */}
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"

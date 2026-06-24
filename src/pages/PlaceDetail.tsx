@@ -104,6 +104,37 @@ export default function PlaceDetail() {
   }
   useEffect(() => { load() }, [id])
 
+  // Programmatic JSON-LD + SEO title for this venue (§6.3 — organic SEO moat)
+  useEffect(() => {
+    if (!place) return
+    const avg = (place.scores.mobility + place.scores.sensory + place.scores.hearing + place.scores.vision) / 4
+    const features = [
+      ...(place.features ?? []),
+      ...(place.scores.mobility >= 6 ? ['Wheelchair accessible entrance'] : []),
+      ...(place.scores.vision >= 6 ? ['Braille / tactile guidance'] : []),
+      ...(place.scores.hearing >= 6 ? ['Hearing support'] : []),
+      ...(place.scores.sensory >= 7 ? ['Low-sensory / quiet space'] : []),
+    ]
+    const ld = {
+      '@context': 'https://schema.org',
+      '@type': 'LocalBusiness',
+      name: place.name,
+      address: place.address,
+      geo: { '@type': 'GeoCoordinates', latitude: place.lat, longitude: place.lng },
+      accessibilityFeature: Array.from(new Set(features)),
+      aggregateRating: place.reviewCount > 0
+        ? { '@type': 'AggregateRating', ratingValue: avg.toFixed(1), bestRating: 10, ratingCount: place.reviewCount }
+        : undefined,
+    }
+    const script = document.createElement('script')
+    script.type = 'application/ld+json'
+    script.text = JSON.stringify(ld)
+    document.head.appendChild(script)
+    const prevTitle = document.title
+    document.title = `${place.name} — accessibility rating & details · AccessMap`
+    return () => { script.remove(); document.title = prevTitle }
+  }, [place])
+
   async function onResolve(alertId: string) {
     await resolveAlert(alertId)
     setAlerts(await getAlerts(id))

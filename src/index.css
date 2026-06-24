@@ -82,6 +82,24 @@ h1, h2, h3 {
 ::-webkit-scrollbar-thumb { background: #dadce0; border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: #bdc1c6; }
 
+/* Accessibility panel modes (toggled on <html>) */
+html.a11y-large { font-size: 112.5%; }
+html.a11y-contrast body { color: #000; }
+html.a11y-contrast .text-muted { color: #2a2f3a !important; }
+html.a11y-contrast .border-border { border-color: #9aa0a6 !important; }
+html.a11y-readable body,
+html.a11y-readable h1,
+html.a11y-readable h2,
+html.a11y-readable h3 { font-family: 'Atkinson Hyperlegible', 'Inter', sans-serif; }
+html.a11y-grey { filter: grayscale(1); }
+html.a11y-reduce-motion *,
+html.a11y-reduce-motion *::before,
+html.a11y-reduce-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
 @layer components {
   .card {
     @apply rounded-2xl border border-border bg-card;
