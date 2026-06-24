@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import type { Place } from '../types'
 import { type Poi } from '../lib/overpass'

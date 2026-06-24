@@ -9,8 +9,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
+          'react-core': ['react', 'react-dom'],
+          'react-router': ['react-router-dom'],
           firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+          leaflet: ['leaflet'],
         },
       },
     },

@@ -1,0 +1,13 @@
+{
+  "name": "AccessMap",
+  "short_name": "AccessMap",
+  "description": "AI-powered accessibility intelligence — find accessible places near you",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f3f4",
+  "theme_color": "#1a73e8",
+  "icons": [
+    { "src": "/pin.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "categories": ["navigation", "utilities", "accessibility"]
+}

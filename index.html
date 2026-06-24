@@ -2,45 +2,105 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/pin.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1a73e8" />
-    <title>AccessMap — Crowdsourced accessibility intelligence</title>
-    <meta
-      name="description"
-      content="AccessMap is a crowdsourced accessibility map: real wheelchair, vision, hearing and sensory ratings, precise ramp and doorway measurements, live barrier alerts, and step-free routing for every place."
-    />
-    <link rel="canonical" href="https://accessmap.app/" />
-    <!-- Open Graph -->
+
+    <!-- Primary SEO -->
+    <title>AccessMap — AI-powered accessibility intelligence</title>
+    <meta name="description" content="AccessMap maps the physical accessibility of the real world — ramps, step-free entrances, accessible restrooms, and routes — verified by AI computer vision. Free for everyone. Intelligence for businesses and cities required to be accessible." />
+    <link rel="canonical" href="https://www.accessmap.world/" />
+
+    <!-- Open Graph (Slack, Discord, iMessage, LinkedIn previews) -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="AccessMap" />
-    <meta property="og:title" content="AccessMap — Find places that actually work for you" />
-    <meta
-      property="og:description"
-      content="Crowdsourced accessibility intelligence: wheelchair, vision, hearing and sensory ratings, precise measurements, live alerts and step-free routes."
-    />
-    <meta property="og:url" content="https://accessmap.app/" />
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="AccessMap — Find places that actually work for you" />
-    <meta
-      name="twitter:description"
-      content="Crowdsourced accessibility intelligence: ratings, precise measurements, live alerts and step-free routes for people with disabilities."
-    />
+    <meta property="og:url" content="https://www.accessmap.world/" />
+    <meta property="og:title" content="AccessMap — AI-powered accessibility intelligence" />
+    <meta property="og:description" content="Know before you go. AI-verified accessibility for every place — ramps, step-free entrances, accessible restrooms, door widths, and routes. Free to use; built for the 1.3B people with disabilities." />
+    <meta property="og:image" content="https://www.accessmap.world/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="AccessMap — AI-powered accessibility intelligence map showing accessible venues near you" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@accessmapworld" />
+    <meta name="twitter:title" content="AccessMap — AI-powered accessibility intelligence" />
+    <meta name="twitter:description" content="AI-verified accessibility for every place. Free to use; built to scale." />
+    <meta name="twitter:image" content="https://www.accessmap.world/og-image.png" />
+    <meta name="twitter:image:alt" content="AccessMap accessibility map interface" />
+
+    <!-- Icons -->
+    <link rel="icon" href="/pin.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Fonts — preconnect first, then stylesheet -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-      crossorigin=""
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <!-- JSON-LD structured data — helps search engines + AI crawlers understand what this is -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://www.accessmap.world/#org",
+          "name": "AccessMap",
+          "url": "https://www.accessmap.world/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.accessmap.world/pin.svg"
+          },
+          "description": "AccessMap is an AI-powered accessibility intelligence platform that maps physical accessibility of real-world venues — ramps, step-free entrances, accessible restrooms, and routes — verified by computer vision.",
+          "sameAs": ["https://github.com/accessmapworld/accessmap"]
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://www.accessmap.world/#app",
+          "name": "AccessMap",
+          "url": "https://www.accessmap.world/",
+          "applicationCategory": "UtilitiesApplication",
+          "operatingSystem": "Web",
+          "description": "AI-powered accessibility intelligence: community-contributed photos verified by computer vision to map ramps, step-free entrances, accessible restrooms, and step-free routes for 1.3 billion people with disabilities.",
+          "featureList": [
+            "AI-verified accessibility scores",
+            "Ramp specifications and measurements",
+            "Step-free routing",
+            "Live barrier alerts",
+            "Hearing loop and sensory information",
+            "Wheelchair accessible restroom details",
+            "Business and municipality API"
+          ],
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "Free for consumers"
+          },
+          "publisher": { "@id": "https://www.accessmap.world/#org" }
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
+    <noscript>
+      <div style="font-family:system-ui,sans-serif;max-width:640px;margin:40px auto;padding:20px;line-height:1.6">
+        <h1>AccessMap — AI-powered accessibility intelligence</h1>
+        <p>AccessMap maps the physical accessibility of real-world venues using AI computer vision and community contributions. Find ramps, step-free entrances, accessible restrooms, door widths, and step-free routes — before you arrive.</p>
+        <ul>
+          <li><a href="/map">Explore the accessibility map</a></li>
+          <li><a href="/for-business">For businesses &amp; cities</a></li>
+          <li><a href="/accessibility">Accessibility statement</a></li>
+          <li><a href="/privacy">Privacy policy</a></li>
+          <li><a href="/terms">Terms of service</a></li>
+        </ul>
+        <p><strong>Enable JavaScript</strong> to use AccessMap's full interactive map, AI-verified accessibility scores, and step-free routing.</p>
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

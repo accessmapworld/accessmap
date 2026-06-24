@@ -18,6 +18,8 @@ const Privacy = lazy(() => import('./pages/Privacy'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Councils = lazy(() => import('./pages/Councils'))
 const Security = lazy(() => import('./pages/Security'))
+const Accessibility = lazy(() => import('./pages/Accessibility'))
+const ForBusiness = lazy(() => import('./pages/ForBusiness'))
 
 function RouteFallback() {
   return (
@@ -59,6 +61,8 @@ export default function App() {
           <Route path="/report" element={<Report />} />
           <Route path="/submit-review" element={<SubmitReview />} />
           <Route path="/business" element={<BusinessRegister />} />
+          <Route path="/for-business" element={<ForBusiness />} />
+          <Route path="/accessibility" element={<Accessibility />} />
           <Route path="/councils" element={<Councils />} />
           <Route path="/security" element={<Security />} />
           <Route path="/privacy" element={<Privacy />} />
