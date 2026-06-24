@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
   MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
-  Navigation2, ChevronRight,
+  Navigation2, ChevronRight, Car, ArrowUpDown, Zap, Clock, Info,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BrandPin from '../components/MapPin'
@@ -442,72 +442,166 @@ export default function MapPage() {
               )}
               {sortedPois.map((p, i) => {
                 const dist = center ? haversineKm(center, [p.lat, p.lng]) : null
-                const CatIcon = CATEGORIES.find((c) => c.key === p.category)?.icon ?? MapPinIcon
+                const bd = p.breakdown
                 return (
                   <div
                     key={p.id}
-                    className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-[#f8f9fa]"
+                    className="border-b border-[#f1f3f4] last:border-0"
                     style={{ animation: 'pageIn 280ms ease-out both', animationDelay: `${Math.min(i, 10) * 35}ms` }}
                   >
-                    <span
-                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
-                      style={{ background: categoryColor(p.category) }}
-                      aria-hidden="true"
-                    >
-                      <CatIcon size={16} />
-                    </span>
-                    <button
-                      onClick={() => setFocus({ lat: p.lat, lng: p.lng, zoom: 17 })}
-                      className="min-w-0 flex-1 text-left"
-                      aria-label={`Focus map on ${p.name}`}
-                    >
-                      <p className="truncate text-sm font-medium text-[#202124]">{p.name}</p>
-                      <p className="truncate text-xs text-[#6b7280]">
-                        {p.address || activeCatMeta?.label}
-                        {dist != null && (
-                          <span className="ml-1 text-[#1a73e8]">
-                            · {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`}
-                          </span>
-                        )}
-                      </p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                        {p.accessScore != null ? (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
-                            style={{ background: scoreColor(p.accessScore) }}
-                          >
-                            <Accessibility size={10} aria-hidden="true" /> {p.accessScore.toFixed(p.accessScore % 1 ? 1 : 0)}/10 · {p.accessLabel}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f3f4] px-2 py-0.5 text-[11px] text-[#6b7280]">
-                            <Accessibility size={10} aria-hidden="true" /> Unrated
-                          </span>
-                        )}
+                    {/* Photo */}
+                    {p.imageUrl && (
+                      <div className="relative h-32 w-full overflow-hidden bg-[#f1f3f4]">
+                        <img
+                          src={p.imageUrl}
+                          alt={p.name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                        {/* Score pill over photo */}
+                        <div className="absolute left-2 bottom-2">
+                          {p.accessScore != null ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-white shadow"
+                              style={{ background: scoreColor(p.accessScore) }}
+                            >
+                              {p.accessScore.toFixed(1)}/10 · {p.accessLabel}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-xs font-medium text-white">
+                              Unrated
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="px-4 py-3">
+                      <div className="flex items-start gap-2">
+                        <button
+                          onClick={() => setFocus({ lat: p.lat, lng: p.lng, zoom: 17 })}
+                          className="min-w-0 flex-1 text-left"
+                          aria-label={`Focus map on ${p.name}`}
+                        >
+                          <p className="font-semibold text-[#202124] leading-tight">{p.name}</p>
+                          <p className="mt-0.5 text-xs text-[#6b7280]">
+                            {p.address || activeCatMeta?.label}
+                            {dist != null && (
+                              <span className="ml-1 text-[#1a73e8]">
+                                · {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`}
+                              </span>
+                            )}
+                          </p>
+                        </button>
+                        <a
+                          href={googleMapsTo([p.lat, p.lng])}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Directions to ${p.name}`}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#dadce0] text-primary hover:bg-primary hover:text-white hover:border-primary transition-colors"
+                        >
+                          <ExternalLink size={13} aria-hidden="true" />
+                        </a>
+                      </div>
+
+                      {/* Score without photo */}
+                      {!p.imageUrl && (
+                        <div className="mt-2">
+                          {p.accessScore != null ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+                              style={{ background: scoreColor(p.accessScore) }}
+                            >
+                              <Accessibility size={10} aria-hidden="true" />
+                              {p.accessScore.toFixed(1)}/10 · {p.accessLabel}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f3f4] px-2.5 py-0.5 text-xs text-[#6b7280]">
+                              <Info size={10} aria-hidden="true" /> Unrated
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Score breakdown */}
+                      {bd.base !== null && (
+                        <div className="mt-2.5 rounded-lg bg-[#f8f9fa] px-3 py-2 text-[11px]">
+                          <p className="font-semibold text-[#202124] mb-1">Score breakdown</p>
+                          <p className="text-[#6b7280]">Base: {bd.base}/10 — {bd.baseReason}</p>
+                          {bd.bonuses.map(b => (
+                            <p key={b.label} className="text-[#1e8e3e]">+{b.points} {b.label}</p>
+                          ))}
+                          {bd.penalties.map(p => (
+                            <p key={p.label} className="text-[#c5221f]">{p.points} {p.label}</p>
+                          ))}
+                          {bd.confidence === 'low' || bd.confidence === 'none' ? (
+                            <p className="mt-1 text-[#9aa0a6] italic">⚠ Estimated from surface data — not OSM-confirmed</p>
+                          ) : null}
+                        </div>
+                      )}
+
+                      {/* Physical feature badges */}
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {p.terrain !== 'Unknown' && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-[#dadce0] px-2 py-0.5 text-[11px] text-[#6b7280]">
-                            <Mountain size={10} aria-hidden="true" /> {p.terrain}
+                          <span className="badge"><Mountain size={10} aria-hidden="true" /> {p.terrain}</span>
+                        )}
+                        {p.hasRamp && (
+                          <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                            <ArrowUpDown size={10} aria-hidden="true" /> Ramp
+                          </span>
+                        )}
+                        {p.hasLift && (
+                          <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                            <Zap size={10} aria-hidden="true" /> Lift
                           </span>
                         )}
                         {p.accessibleToilet && (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full border border-[#dadce0] px-2 py-0.5 text-[11px] text-[#6b7280]"
-                            title="Accessible toilet"
-                          >
-                            <Toilet size={10} aria-hidden="true" /> WC
+                          <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                            <Toilet size={10} aria-hidden="true" /> Accessible WC
                           </span>
                         )}
+                        {p.hasDisabledParking && (
+                          <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
+                            <Car size={10} aria-hidden="true" /> Disabled parking
+                          </span>
+                        )}
+                        {p.doorType && (
+                          <span className="badge"><ArrowUpDown size={10} aria-hidden="true" /> {p.doorType} door</span>
+                        )}
+                        {p.tactile && (
+                          <span className="badge">Tactile paving</span>
+                        )}
                       </div>
-                    </button>
-                    <a
-                      href={googleMapsTo([p.lat, p.lng])}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Open directions in Google Maps"
-                      aria-label={`Get directions to ${p.name}`}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dadce0] text-primary transition-colors hover:bg-primary hover:text-white hover:border-primary"
-                    >
-                      <ExternalLink size={14} aria-hidden="true" />
-                    </a>
+
+                      {/* Mapper's accessibility note */}
+                      {p.wheelchairDescription && (
+                        <p className="mt-2 text-[11px] italic text-[#6b7280] leading-snug">
+                          "{p.wheelchairDescription}"
+                        </p>
+                      )}
+
+                      {/* Opening hours */}
+                      {p.openingHours && (
+                        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#6b7280]">
+                          <Clock size={10} aria-hidden="true" /> {p.openingHours}
+                        </p>
+                      )}
+
+                      {/* Ramp note */}
+                      {p.rampNote && (
+                        <p className="mt-1 text-[11px] text-[#6b7280]">Ramp: {p.rampNote}</p>
+                      )}
+
+                      {/* OSM link */}
+                      <a
+                        href={`https://www.openstreetmap.org/${p.osmId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-flex items-center gap-1 text-[10px] text-[#9aa0a6] hover:text-primary hover:underline"
+                      >
+                        View on OpenStreetMap ↗
+                      </a>
+                    </div>
                   </div>
                 )
               })}
