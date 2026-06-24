@@ -463,11 +463,11 @@ export default function MapPage() {
           )}
         </div>
 
-        {/* Category + filter chips */}
-        <div className="pointer-events-auto flex shrink-0 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* Accessibility filters — wrap so every chip stays visible */}
+        <div className="pointer-events-auto flex shrink-0 flex-wrap items-center gap-2">
           <button
             onClick={() => setShowA11y((s) => !s)}
-            className={`chip shrink-0 ${showA11y ? 'chip-active' : ''}`}
+            className={`chip ${showA11y ? 'chip-active' : ''}`}
             aria-pressed={showA11y}
           >
             <Accessibility size={15} aria-hidden="true" /> Accessible
@@ -475,7 +475,7 @@ export default function MapPage() {
           {profileActive && (
             <button
               onClick={() => setForMeOnly((s) => !s)}
-              className={`chip shrink-0 ${forMeOnly ? 'chip-active' : 'border-primary/40 text-primary'}`}
+              className={`chip ${forMeOnly ? 'chip-active' : 'border-primary/40 text-primary'}`}
               aria-pressed={forMeOnly}
             >
               ✦ {needsProfile.name ? `${needsProfile.name.split(' ')[0]}'s map` : 'For Me'}
@@ -486,14 +486,20 @@ export default function MapPage() {
             <button
               key={key}
               onClick={() => toggleDis(key)}
-              className={`chip shrink-0 ${dis.has(key) ? 'chip-active' : ''}`}
+              className={`chip ${dis.has(key) ? 'chip-active' : ''}`}
               aria-pressed={dis.has(key)}
               title={`Show only places suited to ${label.toLowerCase()} needs`}
             >
               <Icon size={15} aria-hidden="true" /> {label}
             </button>
           ))}
-          <span className="mx-0.5 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
+        </div>
+
+        {/* Category chips — horizontal carousel (scrolls like Google Maps) */}
+        <div
+          className="pointer-events-auto flex shrink-0 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label="Place categories"
+        >
           {CATEGORIES.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
