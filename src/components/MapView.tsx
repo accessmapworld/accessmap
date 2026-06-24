@@ -17,41 +17,45 @@ interface Props {
   className?: string
 }
 
-function teardrop(color: string, dot = '#fff') {
+function pin(color: string, size = 28) {
+  const h = Math.round(size * 1.28)
   return L.divIcon({
     className: 'am-pin',
-    html: `<div style="animation:pinDrop 460ms cubic-bezier(0.34,1.56,0.64,1) both">
-      <svg width="28" height="36" viewBox="0 0 24 30" fill="none" style="filter:drop-shadow(0 2px 3px rgba(60,64,67,0.4))">
-        <path d="M12 0C6 0 1.5 4.5 1.5 10.5c0 7.5 10.5 19 10.5 19s10.5-11.5 10.5-19C22.5 4.5 18 0 12 0Z" fill="${color}"/>
-        <circle cx="12" cy="10.5" r="3.4" fill="${dot}"/>
+    html: `<div style="animation:pinDrop 380ms cubic-bezier(0.34,1.56,0.64,1) both;transform-origin:bottom center">
+      <svg width="${size}" height="${h}" viewBox="0 0 28 36" fill="none" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.22))">
+        <path d="M14 0C7.373 0 2 5.373 2 12c0 8.5 12 24 12 24S26 20.5 26 12C26 5.373 20.627 0 14 0Z" fill="${color}"/>
+        <circle cx="14" cy="12" r="5" fill="rgba(255,255,255,0.9)"/>
       </svg></div>`,
-    iconSize: [28, 36],
-    iconAnchor: [14, 36],
+    iconSize: [size, h],
+    iconAnchor: [size / 2, h],
   })
 }
 
-const PLACE_ICON = teardrop('#0ABFBF')
-const ALERT_ICON = teardrop('#f9ab00')
+const PLACE_ICON = pin('#0ABFBF')
+const ALERT_ICON = pin('#f97316')
+const SPONSOR_ICON = pin('#8b5cf6', 32)
 
-const SPONSOR_ICON = L.divIcon({
-  className: 'am-pin',
-  html: `<div style="animation:pinDrop 460ms cubic-bezier(0.34,1.56,0.64,1) both">
-    <svg width="34" height="42" viewBox="0 0 24 30" fill="none" style="filter:drop-shadow(0 2px 4px rgba(180,140,0,0.55))">
-      <path d="M12 0C6 0 1.5 4.5 1.5 10.5c0 7.5 10.5 19 10.5 19s10.5-11.5 10.5-19C22.5 4.5 18 0 12 0Z" fill="#f5b50a"/>
-      <path d="M12 5.2l1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z" fill="#fff"/>
-    </svg></div>`,
-  iconSize: [34, 42],
-  iconAnchor: [17, 42],
-})
-const poiIconCache = new Map<string, L.DivIcon>()
-const poiIcon = (color: string) => {
-  let ic = poiIconCache.get(color)
-  if (!ic) { ic = teardrop(color); poiIconCache.set(color, ic) }
+const pinCache = new Map<string, L.DivIcon>()
+const cachedPin = (color: string) => {
+  let ic = pinCache.get(color)
+  if (!ic) { ic = pin(color); pinCache.set(color, ic) }
   return ic
 }
 
 const gmaps = (lat: number, lng: number) =>
   `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=walking`
+
+function popupHtml(name: string, address: string | undefined, scoreHtml: string, terrainHtml: string, lat: number, lng: number) {
+  return `<div style="min-width:190px;font-family:'Inter',system-ui,sans-serif">
+    <p style="margin:0;font-size:14px;font-weight:600;color:#111827;line-height:1.3">${name}</p>
+    ${address ? `<p style="margin:4px 0 0;font-size:12px;color:#6b7280">${address}</p>` : ''}
+    <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${scoreHtml}${terrainHtml}</div>
+    <a href="${gmaps(lat, lng)}" target="_blank" rel="noreferrer"
+      style="display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:5px 12px;background:#0ABFBF;color:#fff;border-radius:999px;font-size:12px;font-weight:600;text-decoration:none">
+      Get directions ↗
+    </a>
+  </div>`
+}
 
 export default function MapView({ places, pois = [], alertPlaceIds, userLocation, focus, onSelect, onCenterChange, className }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
@@ -64,8 +68,25 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
 
   useEffect(() => {
     if (!elRef.current || mapRef.current) return
-    const map = L.map(elRef.current, { zoomControl: true, attributionControl: false }).setView([39.5, -20], 3)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
+    const map = L.map(elRef.current, {
+      zoomControl: false,
+      attributionControl: false,
+    }).setView([39.5, -20], 3)
+
+    // CartoDB Voyager — clean, modern, no API key required
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd',
+    }).addTo(map)
+
+    // Zoom control bottom-right
+    L.control.zoom({ position: 'bottomright' }).addTo(map)
+
+    // Minimal attribution bottom-right
+    L.control.attribution({ position: 'bottomright', prefix: false })
+      .addAttribution('© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
+      .addTo(map)
+
     placeLayer.current = L.layerGroup().addTo(map)
     poiLayer.current = L.layerGroup().addTo(map)
     mapRef.current = map
@@ -76,7 +97,6 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
     return () => { map.remove(); mapRef.current = null }
   }, [])
 
-  // accessibility seed places (teal / amber when alert) → click selects
   useEffect(() => {
     const layer = placeLayer.current
     if (!layer) return
@@ -84,52 +104,46 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
     places.forEach((p) => {
       const icon = p.sponsored ? SPONSOR_ICON : alertPlaceIds.has(p.id) ? ALERT_ICON : PLACE_ICON
       const m = L.marker([p.lat, p.lng], { icon })
-      m.bindTooltip(p.sponsored ? `★ ${p.name}` : p.name, { direction: 'top', offset: [0, -34] })
+      m.bindTooltip(p.name, { direction: 'top', offset: [0, -30], className: 'am-tooltip' })
       m.on('click', () => onSelect?.(p))
       m.addTo(layer)
     })
   }, [places, alertPlaceIds, onSelect])
 
-  // category POIs (red) → popup with directions
   useEffect(() => {
     const layer = poiLayer.current
     if (!layer) return
     layer.clearLayers()
     pois.forEach((p) => {
       const c = accessColor(p)
-      const m = L.marker([p.lat, p.lng], { icon: poiIcon(c) })
-      const rating = p.accessScore != null
-        ? `<span style="display:inline-flex;align-items:center;gap:4px;background:${c};color:#fff;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">♿ ${p.accessScore}/10 · ${p.accessLabel}</span>`
-        : `<span style="background:#e3e6ea;color:#5f6368;border-radius:999px;padding:2px 8px;font-size:11px">♿ Unrated</span>`
-      m.bindPopup(
-        `<div style="min-width:170px">
-          <strong style="font-size:14px;color:#202124">${p.name}</strong>
-          ${p.address ? `<div style="color:#5f6368;font-size:12px;margin-top:2px">${p.address}</div>` : ''}
-          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${rating}${p.terrain !== 'Unknown' ? `<span style="border:1px solid #e3e6ea;color:#5f6368;border-radius:999px;padding:2px 8px;font-size:11px">⛰ ${p.terrain}</span>` : ''}</div>
-          <a href="${gmaps(p.lat, p.lng)}" target="_blank" rel="noreferrer"
-            style="display:inline-block;margin-top:8px;color:#1a73e8;font-size:13px;font-weight:600">Directions ↗</a>
-        </div>`,
-      )
+      const m = L.marker([p.lat, p.lng], { icon: cachedPin(c) })
+      const scoreHtml = p.accessScore != null
+        ? `<span style="background:${c};color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">♿ ${p.accessScore}/10</span>`
+        : `<span style="background:#f3f4f6;color:#6b7280;border-radius:999px;padding:2px 9px;font-size:11px">Unrated</span>`
+      const terrainHtml = p.terrain !== 'Unknown'
+        ? `<span style="background:#f3f4f6;color:#374151;border-radius:999px;padding:2px 9px;font-size:11px">⛰ ${p.terrain}</span>`
+        : ''
+      m.bindPopup(popupHtml(p.name, p.address, scoreHtml, terrainHtml, p.lat, p.lng), { maxWidth: 260 })
       m.addTo(layer)
     })
   }, [pois])
 
-  // user location blue dot
   useEffect(() => {
     if (!mapRef.current) return
     userMarker.current?.remove()
     if (!userLocation) return
     userMarker.current = L.marker([userLocation.lat, userLocation.lng], {
       icon: L.divIcon({
-        className: 'am-user',
-        html: `<span style="display:block;width:16px;height:16px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 0 0 2px rgba(26,115,232,0.4),0 1px 4px rgba(0,0,0,0.3)"></span>`,
-        iconSize: [16, 16], iconAnchor: [8, 8],
+        className: '',
+        html: `<div style="width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 3px rgba(37,99,235,0.25),0 2px 6px rgba(0,0,0,0.25)"></div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9],
       }),
-    }).addTo(mapRef.current).bindTooltip('You are here')
+    }).addTo(mapRef.current)
   }, [userLocation])
 
   useEffect(() => {
-    if (focus && mapRef.current) mapRef.current.flyTo([focus.lat, focus.lng], focus.zoom ?? 15, { duration: 1 })
+    if (focus && mapRef.current) mapRef.current.flyTo([focus.lat, focus.lng], focus.zoom ?? 15, { duration: 0.8 })
   }, [focus])
 
   return <div ref={elRef} className={className ?? 'h-full w-full'} />

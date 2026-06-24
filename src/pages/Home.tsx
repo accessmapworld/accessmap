@@ -1,37 +1,28 @@
 import { Link } from 'react-router-dom'
 import {
   MapPin, Accessibility, AlertTriangle, Route as RouteIcon, Megaphone,
-  ArrowRight, Star, ShieldCheck, Ear, Eye,
+  ArrowRight, Star, ShieldCheck, Ear, Eye, Mountain,
 } from 'lucide-react'
 import Layout from '../components/Layout'
 import Aurora from '../components/reactbits/Aurora'
 import GradientText from '../components/reactbits/GradientText'
 import RotatingTextC from '../components/reactbits/RotatingText'
 import ShinyText from '../components/reactbits/ShinyText'
-import ScrollVelocityC from '../components/reactbits/ScrollVelocity'
-import BlurText from '../components/reactbits/BlurText'
-import MagicBento from '../components/reactbits/MagicBento'
-import GlitchText from '../components/reactbits/GlitchText'
-import CardSwapC, { Card as CardC } from '../components/reactbits/CardSwap'
 
-// React Bits components are untyped (@ts-nocheck) — relax their JSX prop types.
 const RotatingText = RotatingTextC as unknown as (props: Record<string, unknown>) => any
-const ScrollVelocity = ScrollVelocityC as unknown as (props: Record<string, unknown>) => any
-const CardSwap = CardSwapC as unknown as (props: Record<string, unknown>) => any
-const Card = CardC as unknown as (props: Record<string, unknown>) => any
 
 const FEATURES = [
-  { icon: Accessibility, color: '#0ABFBF', title: 'Four-dimension scores', body: 'Every place rated for mobility, sensory, hearing and vision by the people who live it.' },
-  { icon: AlertTriangle, color: '#ea4335', title: 'Live community alerts', body: '“Elevator offline”, “ramp blocked” — real-time reports, AI-verified from photos.' },
+  { icon: Accessibility, color: '#0ABFBF', title: 'Four accessibility dimensions', body: 'Every place rated for mobility, sensory, hearing and vision by the people who live it.' },
+  { icon: AlertTriangle, color: '#f97316', title: 'Live community alerts', body: 'Real-time reports like "elevator offline" or "ramp blocked", community-verified.' },
   { icon: RouteIcon, color: '#1a73e8', title: 'Step-free routing', body: 'Plan accessible walking routes and open turn-by-turn directions in Google Maps.' },
-  { icon: Megaphone, color: '#f5b50a', title: 'Disability-friendly businesses', body: 'Businesses self-list and get discovered by a community that values access.' },
+  { icon: Mountain, color: '#7c3aed', title: 'Terrain & trail ratings', body: 'Know the ground before you go — surface type and trail difficulty for every location.' },
 ]
 
 const STATS = [
   { n: '4', label: 'accessibility dimensions' },
-  { n: '5', label: 'cities seeded' },
   { n: '100%', label: 'community-driven' },
   { n: 'Free', label: 'forever, for everyone' },
+  { n: 'Live', label: 'alerts & updates' },
 ]
 
 export default function Home() {
@@ -91,16 +82,12 @@ export default function Home() {
       {/* MISSION */}
       <section className="mx-auto max-w-3xl px-6 py-20 text-center">
         <p className="label">Our mission</p>
-        <div className="mt-3 flex justify-center">
-          <BlurText
-            text="Make the whole world navigable — for everyone."
-            className="justify-center text-center text-3xl font-semibold leading-tight sm:text-4xl"
-            delay={90}
-          />
-        </div>
+        <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
+          Make the whole world navigable — for everyone.
+        </h2>
         <p className="mx-auto mt-5 max-w-2xl text-muted">
           Accessibility information is scattered, outdated, or missing. AccessMap is a single, living map
-          where the disability community shares what’s truly accessible, flags what breaks, and routes
+          where the disability community shares what's truly accessible, flags what breaks, and routes
           around the barriers — so everyone can move through the world with confidence and dignity.
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted">
@@ -111,57 +98,46 @@ export default function Home() {
         </div>
       </section>
 
-      {/* MARQUEE */}
-      <section className="border-y border-border bg-card py-6 text-ink/15">
-        <ScrollVelocity
-          texts={['Step-free  ·  Quiet spaces  ·  Braille  ·  Hearing loops  ·  Ramps  ·  Elevators  ·  ']}
-          velocity={40}
-          className="px-3 text-3xl sm:text-5xl"
-        />
-      </section>
-
-      {/* HOW IT WORKS — CardSwap */}
-      <section className="px-3 py-16">
-        <div className="relative mx-auto grid max-w-5xl items-center gap-8 overflow-hidden rounded-3xl bg-[#070B18] px-6 py-14 lg:grid-cols-2">
+      {/* HOW IT WORKS */}
+      <section className="px-3 pb-6">
+        <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-[#070B18] px-6 py-14 lg:grid lg:grid-cols-2 lg:items-center lg:gap-12">
           <div className="relative z-10">
             <p className="label text-primary/80">How it works</p>
-            <h2 className="mt-2 text-3xl font-semibold text-white">Three taps to an accessible trip</h2>
-            <ol className="mt-6 space-y-4 text-white/75">
-              <li className="flex gap-3"><span className="font-mono text-primary">01</span> Search a place — or tap a category near you.</li>
-              <li className="flex gap-3"><span className="font-mono text-primary">02</span> Check its accessibility score &amp; live alerts.</li>
-              <li className="flex gap-3"><span className="font-mono text-primary">03</span> Plan a step-free route &amp; open it in Google Maps.</li>
+            <h2 className="mt-2 text-3xl font-semibold text-white">Three steps to an accessible trip</h2>
+            <ol className="mt-6 space-y-5 text-white/75">
+              {[
+                'Search a place — or tap a category near you.',
+                'Check its accessibility score, terrain rating & live alerts.',
+                'Plan a step-free route & open it in Google Maps.',
+              ].map((step, i) => (
+                <li key={i} className="flex items-start gap-4">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 font-mono text-sm text-primary">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
             </ol>
-            <Link to="/map" className="btn-primary mt-7 inline-flex">Try it now <ArrowRight size={18} /></Link>
+            <Link to="/map" className="btn-primary mt-8 inline-flex">Try it now <ArrowRight size={18} /></Link>
           </div>
-          <div className="relative h-[300px]">
-            <CardSwap width={340} height={220} cardDistance={48} verticalDistance={54} delay={3800} pauseOnHover>
-              <Card>
-                <div className="p-6"><p className="label text-primary">Search</p><h3 className="mt-2 text-xl font-semibold">Find what’s near you</h3><p className="mt-2 text-sm text-white/70">Restaurants, transit, pharmacies — colour-coded for access.</p></div>
-              </Card>
-              <Card>
-                <div className="p-6"><p className="label text-[#f5b50a]">Review</p><h3 className="mt-2 text-xl font-semibold">See the real scores</h3><p className="mt-2 text-sm text-white/70">Mobility, sensory, hearing, vision — plus live alerts.</p></div>
-              </Card>
-              <Card>
-                <div className="p-6"><p className="label text-[#1a73e8]">Route</p><h3 className="mt-2 text-xl font-semibold">Go step-free</h3><p className="mt-2 text-sm text-white/70">Accessible directions, one tap to Google Maps.</p></div>
-              </Card>
-            </CardSwap>
-          </div>
-        </div>
-      </section>
 
-      {/* CAPABILITIES — MagicBento */}
-      <section className="px-6 py-12">
-        <div className="text-center">
-          <p className="label">Everything in one map</p>
-          <h2 className="mt-2 text-3xl font-semibold">Capabilities</h2>
-        </div>
-        <div className="mt-10 rounded-3xl bg-[#070B18] p-5 sm:p-7">
-          <MagicBento glowColor="10, 191, 191" particleCount={8} />
+          {/* Features grid replaces CardSwap */}
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:mt-0">
+            {FEATURES.map(({ icon: Icon, color, title, body }) => (
+              <div key={title} className="rounded-2xl border border-white/8 bg-white/5 p-5 backdrop-blur-sm">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: color }}>
+                  <Icon size={18} />
+                </span>
+                <p className="mt-3 font-semibold text-white">{title}</p>
+                <p className="mt-1 text-sm text-white/60">{body}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* STATS */}
-      <section className="mx-auto max-w-5xl px-6 pb-4">
+      <section className="mx-auto max-w-5xl px-6 py-12">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {STATS.map((s) => (
             <div key={s.label} className="card p-5 text-center">
@@ -173,17 +149,15 @@ export default function Home() {
       </section>
 
       {/* CTA */}
-      <section className="px-3 py-16">
+      <section className="px-3 pb-16">
         <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl bg-[#070B18] px-6 py-16 text-center">
           <div className="pointer-events-none absolute inset-0 opacity-70">
             <Aurora colorStops={['#1a73e8', '#0ABFBF', '#1a73e8']} amplitude={0.9} blend={0.5} />
           </div>
           <div className="relative z-10">
             <ShieldCheck className="mx-auto text-primary" size={36} />
-            <div className="mt-4 flex justify-center">
-              <GlitchText className="text-3xl sm:text-4xl" speed={1.2}>Map accessibility with us</GlitchText>
-            </div>
-            <p className="mx-auto mt-2 max-w-md text-white/65">
+            <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">Map accessibility with us</h2>
+            <p className="mx-auto mt-3 max-w-md text-white/65">
               Explore your city, drop a review, or flag an issue — every contribution helps someone get there.
             </p>
             <div className="mt-7 flex flex-wrap justify-center gap-3">
@@ -214,7 +188,7 @@ export default function Home() {
           <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline hover:text-ink">
             OpenStreetMap
           </a>{' '}
-          contributors
+          contributors · © <a href="https://carto.com/attributions" target="_blank" rel="noreferrer" className="underline hover:text-ink">CARTO</a>
         </p>
         <p className="mt-2 text-xs text-muted/60">© {new Date().getFullYear()} AccessMap. Accessibility data is community-sourced and may not be complete or accurate. Do not rely solely on AccessMap for safety-critical decisions.</p>
       </footer>
