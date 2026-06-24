@@ -5,77 +5,107 @@ import { fetchWikiImage } from './wikipedia'
 export interface OsmData {
   osmId?: string
   name?: string
-  // Rich scoring — same engine as POI cards
   accessScore: number | null
   accessLabel: string
   breakdown: ScoreBreakdown
-  // Physical fields mapped to AccessSpecs shape
   specs: Partial<AccessSpecs>
-  // Media
   imageUrl?: string
-  // Contact / info
   openingHours?: string
   phone?: string
   website?: string
   wheelchairDescription?: string
-  // Display-only extras
   extras: { label: string; value: string }[]
-  /** Raw OSM tags for debugging */
   raw: Record<string, string>
 }
 
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
+]
+
+async function overpassQuery(q: string, signal?: AbortSignal): Promise<any> {
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(q),
+        signal,
+      })
+      if (res.ok) return await res.json()
+    } catch (e) {
+      if ((e as any)?.name === 'AbortError') throw e
+    }
+  }
+  throw new Error('All Overpass endpoints failed')
+}
+
+// Tags used to pick the most-detailed element when multiple are returned
+const A11Y_TAGS = [
+  'wheelchair', 'ramp', 'ramp:wheelchair', 'tactile_paving', 'step_count',
+  'entrance:step_count', 'step_height', 'lift', 'elevator',
+  'toilets:wheelchair', 'wheelchair:toilets', 'surface', 'smoothness',
+  'handrail', 'ramp:handrail', 'parking:disabled', 'capacity:disabled',
+  'door:width', 'entrance:width', 'ramp:width', 'lift:width', 'lift:depth',
+  'elevator:width', 'elevator:depth', 'kerb', 'incline', 'ramp:incline',
+  'hearing_loop', 'deaf:loop', 'menu:braille', 'braille',
+  'quiet_room', 'sensory_room', 'changing_place', 'changing_table:wheelchair',
+  'assistance_dog', 'capacity:wheelchair', 'wheelchair:seating',
+  'min_width', 'wheelchair:width', 'toilets:grab_rail', 'grab_rail',
+  'turning_circle:wheelchair', 'turning_space', 'automatic_door', 'door:automatic',
+  'wheelchair:description',
+]
+
 export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSignal): Promise<OsmData | null> {
+  // Use 'out center tags' (not 'out body') — body includes full way geometry, wastes bandwidth
   const q = `
-    [out:json][timeout:15];
+    [out:json][timeout:20];
     (
-      node(around:80,${lat},${lng})["name"];
-      way(around:80,${lat},${lng})["name"];
+      node(around:100,${lat},${lng})["name"];
+      way(around:100,${lat},${lng})["name"];
     );
-    out body tags 5;`
+    out center tags 10;`
 
   let data: any
   try {
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body: 'data=' + encodeURIComponent(q),
-      signal,
-    })
-    if (!res.ok) return null
-    data = await res.json()
+    data = await overpassQuery(q, signal)
   } catch { return null }
 
   const elements: any[] = data?.elements ?? []
   if (elements.length === 0) return null
 
-  // Pick the element with the most accessibility tags
+  // Pick the element with the most accessibility-relevant tags
   const scored = elements.map((el: any) => {
     const t: Record<string, string> = el.tags ?? {}
-    const score = ['wheelchair', 'ramp', 'tactile_paving', 'step_count', 'lift',
-      'toilets:wheelchair', 'surface', 'handrail', 'parking:disabled'].filter(k => t[k]).length
+    const score = A11Y_TAGS.filter(k => t[k] && t[k] !== 'no').length
     return { el, t, score }
   })
   scored.sort((a, b) => b.score - a.score)
   const { el, t } = scored[0]
 
-  // ── Run the same scoring engine used for POI cards ────────────────
+  // Run same scoring engine as POI cards
   const derived = deriveAccess(t)
 
   // ── Map to AccessSpecs ────────────────────────────────────────────
   const specs: Partial<AccessSpecs> = {}
 
+  // Step-free entrance
   const wc = t.wheelchair?.toLowerCase()
   if (wc === 'yes') specs.hasStepFreeEntrance = true
   else if (wc === 'no') specs.hasStepFreeEntrance = false
 
   // Steps / kerb
   const stepCount = parseInt(t.step_count ?? t['entrance:step_count'] ?? t['steps:count'] ?? '')
-  if (!isNaN(stepCount)) { specs.entranceStepCount = stepCount; if (stepCount === 0) specs.hasStepFreeEntrance = true }
+  if (!isNaN(stepCount)) {
+    specs.entranceStepCount = stepCount
+    if (stepCount === 0) specs.hasStepFreeEntrance = true
+  }
   if (derived.stepHeightCm != null) specs.stepHeightCm = derived.stepHeightCm
   if (derived.kerbType) specs.kerbType = derived.kerbType
   if (derived.entranceLevel) specs.entranceLevel = derived.entranceLevel
 
   // Ramp
-  if (derived.hasRamp != null) specs.rampPresent = derived.hasRamp
+  specs.rampPresent = derived.hasRamp
   if (derived.rampGradient != null) {
     specs.rampGradientPct = derived.rampGradient
     specs.rampGradient = derived.rampGradient <= 5 ? 'gentle' : derived.rampGradient <= 10 ? 'moderate' : 'steep'
@@ -87,19 +117,36 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
   if (derived.doorWidthCm != null) specs.doorWidthCm = derived.doorWidthCm
   if (derived.doorType === 'Automatic') specs.doorType = 'automatic'
   else if (t.door === 'hinged' || t.door === 'manual') specs.doorType = 'manual'
+  else if (t.door === 'revolving') specs.doorType = 'revolving'
 
   // Lift
-  if (derived.hasLift != null) specs.hasLift = derived.hasLift
+  specs.hasLift = derived.hasLift
   if (derived.liftWidthCm != null) specs.liftDoorWidthCm = derived.liftWidthCm
   if (derived.liftDepthCm != null) specs.liftDepthCm = derived.liftDepthCm
 
+  // Accessible WC
   if (derived.accessibleToilet) specs.hasAccessibleToilet = true
   else if ((t['toilets:wheelchair'] || t['wheelchair:toilets'] || '').toLowerCase() === 'no') specs.hasAccessibleToilet = false
 
-  const grabRail = t['toilets:grab_rail'] ?? t.grab_rail
-  if (grabRail === 'yes') specs.toiletGrabRails = true
-  else if (grabRail === 'no') specs.toiletGrabRails = false
+  // WC grab rail
+  const grabRailRaw = (t['toilets:grab_rail'] || t.grab_rail || '').toLowerCase()
+  if (grabRailRaw === 'yes') specs.toiletGrabRails = true
+  else if (grabRailRaw === 'no') specs.toiletGrabRails = false
 
+  // WC turning space — parse to cm
+  const turningRaw = t['turning_circle:wheelchair'] || t['turning_space']
+  if (turningRaw) {
+    const v = parseFloat(turningRaw.replace(/[^0-9.]/g, ''))
+    if (!isNaN(v) && v > 0) {
+      // OSM values like "150 cm" or "1.5 m" or bare "150"
+      const lower = turningRaw.toLowerCase()
+      specs.turningSpaceCm = lower.includes('cm') ? Math.round(v)
+        : lower.includes('m') ? Math.round(v * 100)
+        : v < 10 ? Math.round(v * 100) : Math.round(v)
+    }
+  }
+
+  // Surface / tactile
   if (derived.surface) {
     const s = derived.surface
     if (['asphalt', 'paved', 'concrete', 'paving_stones', 'tiles', 'wood', 'rubber'].includes(s)) specs.floorSurface = 'smooth'
@@ -108,10 +155,10 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
     else if (['gravel', 'ground', 'dirt', 'sand', 'grass', 'earth', 'mud'].includes(s)) specs.floorSurface = 'gravel'
     else if (['compacted', 'fine_gravel', 'pebblestone', 'bricks'].includes(s)) specs.floorSurface = 'uneven'
   }
-
   if (derived.tactile) specs.hasTactilePaving = true
   else if (t.tactile_paving?.toLowerCase() === 'no') specs.hasTactilePaving = false
 
+  // Parking
   if (derived.hasDisabledParking != null) specs.hasDisabledParking = derived.hasDisabledParking
   if (derived.disabledParkingSpaces != null) specs.disabledParkingSpaces = derived.disabledParkingSpaces
 
@@ -122,24 +169,21 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
     const file = t.wikimedia_commons.replace(/^(File:|Category:)/, '').trim()
     imageUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/ /g, '_'))}?width=800`
   }
-  // Fall back to Wikipedia thumbnail
   if (!imageUrl && t.name) {
     imageUrl = await fetchWikiImage(t.name) || undefined
   }
 
-  // ── Extras ────────────────────────────────────────────────────────
+  // ── Extras (displayed in the info card, not badge section) ────────
   const extras: { label: string; value: string }[] = []
-  if (t['wheelchair:description']) extras.push({ label: 'Accessibility note', value: t['wheelchair:description'] })
-  const kerb = t.kerb ?? t['curb']
-  if (kerb) extras.push({ label: 'Kerb / dropped kerb', value: kerb })
-  if (t.level) extras.push({ label: 'Floor level', value: t.level })
+  if (t['wheelchair:description'])
+    extras.push({ label: 'Accessibility note', value: t['wheelchair:description'] })
   if (t.fee === 'no') extras.push({ label: 'Admission', value: 'Free entry' })
   else if (t.fee === 'yes') extras.push({ label: 'Admission', value: 'Paid' })
   if (t['addr:street']) {
     const addr = [t['addr:housenumber'], t['addr:street'], t['addr:city']].filter(Boolean).join(' ')
     extras.push({ label: 'Address (OSM)', value: addr })
   }
-  // Sensory / hearing / extra accessibility
+  // Sensory / communication
   if ((t['hearing_loop'] || t['deaf:loop'] || '').toLowerCase() === 'yes')
     extras.push({ label: 'Hearing loop', value: 'Yes' })
   if ((t['menu:braille'] || t['braille'] || '').toLowerCase() === 'yes')
@@ -155,8 +199,6 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
     extras.push({ label: 'Wheelchair seating', value: /^\d+$/.test(wSeating) ? `${wSeating} spaces` : 'Available' })
   const minWidth = t['min_width'] || t['wheelchair:width']
   if (minWidth) extras.push({ label: 'Min. corridor width', value: minWidth })
-  if (t['toilets:grab_rail'] || t['grab_rail']) extras.push({ label: 'Grab rails', value: t['toilets:grab_rail'] === 'yes' || t['grab_rail'] === 'yes' ? 'Yes' : 'No' })
-  if (t['turning_circle:wheelchair'] || t['turning_space']) extras.push({ label: 'Wheelchair turning space', value: t['turning_circle:wheelchair'] || t['turning_space'] })
 
   return {
     osmId: `${el.type}/${el.id}`,

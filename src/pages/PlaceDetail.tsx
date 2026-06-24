@@ -378,25 +378,31 @@ export default function PlaceDetail() {
         if (s.hasLift === false)
           features.push(<FeatureBadge key="lift-no" icon={Info} label="No lift" />)
 
-        // Accessible WC
-        if (s.hasAccessibleToilet === true)
-          features.push(<FeatureBadge key="wc" icon={ToiletIcon} label={`Accessible WC${s.toiletGrabRails ? ' + grab rails' : ''}${s.turningSpaceCm != null ? ` · ${s.turningSpaceCm} cm turning` : ''}`} positive />)
+        // Accessible WC — with grab rails and turning space from specs
+        if (s.hasAccessibleToilet === true) {
+          const wcParts = ['Accessible WC']
+          if (s.toiletGrabRails) wcParts.push('grab rails')
+          if (s.turningSpaceCm != null) wcParts.push(`${s.turningSpaceCm} cm turning space`)
+          features.push(<FeatureBadge key="wc" icon={ToiletIcon} label={wcParts.join(' · ')} positive />)
+        }
         if (s.hasAccessibleToilet === false)
           features.push(<FeatureBadge key="wc-no" icon={Info} label="No accessible WC" />)
 
-        // Parking
-        if (s.hasDisabledParking === true)
-          features.push(<FeatureBadge key="park" icon={Car} label={`Disabled parking${s.disabledParkingSpaces != null ? ` · ${s.disabledParkingSpaces} space${s.disabledParkingSpaces !== 1 ? 's' : ''}` : ''}${s.parkingDistanceM != null ? ` (${s.parkingDistanceM}m)` : ''}`} positive />)
+        // Parking (single badge, includes space count)
+        if (s.hasDisabledParking === true) {
+          const parkParts = ['Disabled parking']
+          if (s.disabledParkingSpaces != null) parkParts.push(`${s.disabledParkingSpaces} space${s.disabledParkingSpaces !== 1 ? 's' : ''}`)
+          if (s.parkingDistanceM != null) parkParts.push(`${s.parkingDistanceM}m away`)
+          features.push(<FeatureBadge key="park" icon={Car} label={parkParts.join(' · ')} positive />)
+        }
 
         // Surface / tactile
         if (s.floorSurface)
           features.push(<FeatureBadge key="surf" icon={Info} label={`Surface: ${s.floorSurface}`} positive={s.floorSurface === 'smooth'} />)
         if (s.hasTactilePaving === true)
           features.push(<FeatureBadge key="tac" icon={Footprints} label="Tactile paving" positive />)
-        if (s.disabledParkingSpaces != null)
-          features.push(<FeatureBadge key="pkspaces" icon={Car} label={`${s.disabledParkingSpaces} disabled parking space${s.disabledParkingSpaces !== 1 ? 's' : ''}`} positive />)
 
-        // Sensory / hearing extras (from OSM extras)
+        // Sensory / hearing / communication (from OSM extras)
         const extras = osmData.extras
         const extraByLabel = (lbl: string) => extras.find(e => e.label === lbl)?.value
         if (extraByLabel('Hearing loop') === 'Yes')
@@ -411,16 +417,10 @@ export default function PlaceDetail() {
           features.push(<FeatureBadge key="dog" icon={Info} label="Assistance dogs welcome" positive />)
         const wSeating = extraByLabel('Wheelchair seating')
         if (wSeating)
-          features.push(<FeatureBadge key="wseat" icon={Info} label={`Wheelchair seating: ${wSeating}`} positive />)
+          features.push(<FeatureBadge key="wseat" icon={Info} label={`Wheelchair seating · ${wSeating}`} positive />)
         const minWidth = extraByLabel('Min. corridor width')
         if (minWidth)
-          features.push(<FeatureBadge key="corridor" icon={Info} label={`Min corridor: ${minWidth}`} positive={parseFloat(minWidth) >= 120} />)
-        const grabRail = extraByLabel('Grab rails')
-        if (grabRail === 'Yes')
-          features.push(<FeatureBadge key="grab" icon={CheckCircle2} label="Grab rails" positive />)
-        const turningSpace = extraByLabel('Wheelchair turning space')
-        if (turningSpace)
-          features.push(<FeatureBadge key="turn" icon={Info} label={`Turning space: ${turningSpace}`} positive />)
+          features.push(<FeatureBadge key="corridor" icon={Info} label={`Corridor · min ${minWidth}`} positive={parseFloat(minWidth) >= 120} />)
 
         return (
           <section className="mb-6">
