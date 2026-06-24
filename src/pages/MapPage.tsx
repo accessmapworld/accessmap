@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Loader2, X, LocateFixed, Accessibility, ExternalLink, MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon } from 'lucide-react'
+import { Search, Loader2, X, LocateFixed, Accessibility, ExternalLink, MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BrandPin from '../components/MapPin'
 import MapView from '../components/MapView'
+import { scoreColor } from '../components/ScoreRing'
 import { getPlaces, getAlerts } from '../lib/data'
 import { searchPlaces, type GeoResult } from '../lib/nominatim'
 import { CATEGORIES, categoryColor, nearbyByCategory, haversineKm, type Poi, type CategoryKey } from '../lib/overpass'
@@ -255,18 +256,43 @@ export default function MapPage() {
                 const dist = center ? haversineKm(center, [p.lat, p.lng]) : null
                 const Icon = CATEGORIES.find((c) => c.key === p.category)!.icon
                 return (
-                  <div key={p.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-bg"
+                  <div key={p.id} className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-bg"
                     style={{ animation: 'pageIn 320ms ease-out both', animationDelay: `${Math.min(i, 12) * 40}ms` }}>
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
                       style={{ background: categoryColor(p.category) }}>
                       <Icon size={16} />
                     </span>
                     <button onClick={() => setFocus({ lat: p.lat, lng: p.lng, zoom: 17 })} className="min-w-0 flex-1 text-left">
                       <p className="truncate font-medium text-ink">{p.name}</p>
-                      <p className="truncate text-sm text-muted">
+                      <p className="truncate text-xs text-muted">
                         {p.address || CATEGORIES.find((c) => c.key === p.category)?.label}
-                        {dist != null && <span className="text-muted"> · {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`}</span>}
+                        {dist != null && <span> · {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`}</span>}
                       </p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        {/* accessibility rating */}
+                        {p.accessScore != null ? (
+                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+                            style={{ background: scoreColor(p.accessScore) }}>
+                            <Accessibility size={11} /> {p.accessScore.toFixed(p.accessScore % 1 ? 1 : 0)}/10 · {p.accessLabel}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-border px-2 py-0.5 text-[11px] font-medium text-muted">
+                            <Accessibility size={11} /> Unrated
+                          </span>
+                        )}
+                        {/* terrain */}
+                        {p.terrain !== 'Unknown' && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted">
+                            <Mountain size={11} /> {p.terrain}
+                          </span>
+                        )}
+                        {/* accessible toilet */}
+                        {p.accessibleToilet && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted" title="Accessible toilet">
+                            <Toilet size={11} /> WC
+                          </span>
+                        )}
+                      </div>
                     </button>
                     <a href={googleMapsTo([p.lat, p.lng])} target="_blank" rel="noreferrer"
                       title="Directions in Google Maps"
