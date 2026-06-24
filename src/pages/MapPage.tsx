@@ -150,7 +150,7 @@ export default function MapPage() {
         setLocToast(null)
         setUserLoc({ lat, lng })
         setCenter([lat, lng])
-        setFocus({ lat, lng, zoom: 15 })
+        setFocus({ lat, lng, zoom: 17 })
         startWatch()
         onDone?.([lat, lng])
       },
@@ -158,22 +158,24 @@ export default function MapPage() {
         const c = await ipCoords()
         setLocating(false)
         if (c) {
-          setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 12 })
-          if (err.code === 1) {
-            showToast('Location permission denied. Allow it in your browser to see your precise position.', 'info')
-          }
-          // No toast for timeout/unavailable — IP fallback works fine, no need to alarm the user
+          setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 13 })
+          showToast(
+            err.code === 1
+              ? 'Location permission denied — showing approximate area. Enable location in your browser settings for precise GPS.'
+              : 'GPS timed out — showing approximate area. Try again or search for a place.',
+            'info',
+          )
           onDone?.(c)
         } else {
           showToast(
             err.code === 1
-              ? 'Location permission denied. Allow it in your browser settings, or search for a place.'
+              ? 'Location permission denied. Enable it in your browser settings, or search for a place.'
               : 'Could not determine your location. Try searching for a place.',
             'error',
           )
         }
       },
-      { enableHighAccuracy: false, timeout: 6000, maximumAge: 30000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     )
   }
 
