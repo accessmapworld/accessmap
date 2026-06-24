@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
   MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
@@ -11,8 +11,7 @@ import BrandPin from '../components/MapPin'
 import MapView from '../components/MapView'
 import { scoreColor } from '../components/ScoreRing'
 import { getPlaces, getAlerts } from '../lib/data'
-import { searchPlaces, reverseGeocode, type GeoResult } from '../lib/nominatim'
-import EmptyStateCapture from '../components/EmptyStateCapture'
+import { searchPlaces, type GeoResult } from '../lib/nominatim'
 import { CATEGORIES, categoryColor, nearbyByCategory, haversineKm, type Poi, type CategoryKey } from '../lib/overpass'
 import { batchWikiImages } from '../lib/wikipedia'
 import { googleMapsTo } from '../lib/maps'
@@ -46,9 +45,6 @@ const DIS_FILTERS: {
 ]
 
 export default function MapPage() {
-  const nav = useNavigate()
-  const [cityLabel, setCityLabel] = useState('')
-  const [emptyDismissed, setEmptyDismissed] = useState(false)
   const [places, setPlaces] = useState<Place[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null)
@@ -146,12 +142,6 @@ export default function MapPage() {
     )
   }
 
-  // Reverse-geocode the centred coords to label the area, and re-arm the empty-state capture
-  function noteArea(lat: number, lng: number) {
-    setEmptyDismissed(false)
-    reverseGeocode(lat, lng).then((g) => setCityLabel(g.shortName)).catch(() => {})
-  }
-
   // Silent startup: never show toasts, just do best-effort centering
   async function locateSilent() {
     if (!navigator?.geolocation) {
@@ -166,7 +156,6 @@ export default function MapPage() {
         setCenter([lat, lng])
         setFocus({ lat, lng, zoom: 15 })
         startWatch()
-        noteArea(lat, lng)
       },
       async () => {
         // GPS failed silently — try IP, no error shown
@@ -204,7 +193,6 @@ export default function MapPage() {
       }
       setCenter([lat, lng])
       setFocus({ lat, lng, zoom: precise ? 17 : 13 })
-      noteArea(lat, lng)
       if (!precise) {
         showToast(
           permDenied
@@ -321,13 +309,6 @@ export default function MapPage() {
     return list
   }, [showA11y, forMeOnly, places, needsProfile, profileActive, dis])
 
-  // "Ghost town" detection: are there any AccessMap accessible places near the view?
-  const nearbyAccessibleCount = useMemo(() => {
-    if (!center) return null
-    return places.filter((p) => haversineKm(center, [p.lat, p.lng]) <= 40).length
-  }, [places, center])
-  const showEmptyCapture = !!center && !panelOpen && !emptyDismissed && nearbyAccessibleCount === 0
-
   const sortedPois = useMemo(() => {
     const dist = (p: Poi) => (center ? haversineKm(center, [p.lat, p.lng]) : 0)
     const active = DIS_FILTERS.filter((f) => dis.has(f.key))
@@ -357,15 +338,6 @@ export default function MapPage() {
           onSelect={(p) => setFocus({ lat: p.lat, lng: p.lng, zoom: 16 })}
         />
       </div>
-
-      {/* Empty-state market capture: turn a "ghost town" view into a lead (§1.4) */}
-      {showEmptyCapture && (
-        <EmptyStateCapture
-          area={cityLabel}
-          onMapFirst={() => nav('/business')}
-          onDismiss={() => setEmptyDismissed(true)}
-        />
-      )}
 
       {/* OSM attribution */}
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
@@ -578,23 +550,57 @@ export default function MapPage() {
               {sortedPois.map((p, i) => {
                 const dist = center ? haversineKm(center, [p.lat, p.lng]) : null
                 const bd = p.breakdown
+                // Build all feature badges in a flat array — all wrapped together
+                const badges: React.ReactNode[] = []
+                if (p.terrain !== 'Unknown') badges.push(<span key="terr" className="badge"><Mountain size={9} /> {p.surface ?? p.terrain}</span>)
+                if (p.stepCount === 0) badges.push(<span key="sf" className="badge-green"><CheckCircle2 size={9} /> Step-free</span>)
+                if (p.stepCount != null && p.stepCount > 0) badges.push(<span key="steps" className="badge-red"><Info size={9} /> {p.stepCount} step{p.stepCount !== 1 ? 's' : ''}{p.stepHeightCm ? ` · ${p.stepHeightCm}cm` : ''}</span>)
+                if (p.kerbType) badges.push(<span key="kerb" className={p.kerbType === 'flush' || p.kerbType === 'lowered' ? 'badge-green' : 'badge'}><Info size={9} /> Kerb: {p.kerbType}</span>)
+                if (p.hasRamp) {
+                  const rampLabel = ['Ramp', p.rampGradient != null && `${p.rampGradient.toFixed(0)}%`, p.rampWidthCm && `${p.rampWidthCm}cm wide`].filter(Boolean).join(' · ')
+                  badges.push(<span key="ramp" className="badge-green"><ArrowUpDown size={9} /> {rampLabel}</span>)
+                  if (p.rampHasHandrail === true) badges.push(<span key="hn" className="badge-green">Handrail ✓</span>)
+                  if (p.rampHasHandrail === false) badges.push(<span key="hn2" className="badge">No handrail</span>)
+                }
+                if (p.doorType || p.doorWidthCm != null) {
+                  const doorLabel = [p.doorType ?? 'Door', p.doorWidthCm && `${p.doorWidthCm}cm`].filter(Boolean).join(' · ')
+                  badges.push(<span key="door" className={p.doorType === 'Automatic' ? 'badge-green' : 'badge'}><Zap size={9} /> {doorLabel}</span>)
+                }
+                if (p.hasLift) {
+                  const liftLabel = ['Lift', p.liftWidthCm && `${p.liftWidthCm}cm door`, p.liftDepthCm && `${p.liftDepthCm}cm deep`].filter(Boolean).join(' · ')
+                  badges.push(<span key="lift" className="badge-green"><Zap size={9} /> {liftLabel}</span>)
+                }
+                if (p.accessibleToilet) badges.push(<span key="wc" className="badge-green"><Toilet size={9} /> Accessible WC</span>)
+                if (p.hasDisabledParking) {
+                  const parkLabel = ['Parking', p.disabledParkingSpaces && `${p.disabledParkingSpaces} spaces`].filter(Boolean).join(' · ')
+                  badges.push(<span key="park" className="badge-green"><Car size={9} /> {parkLabel}</span>)
+                }
+                if (p.tactile) badges.push(<span key="tac" className="badge">Tactile paving</span>)
+                if (p.corridorWidthCm != null) badges.push(<span key="corr" className={p.corridorWidthCm >= 120 ? 'badge-green' : 'badge'}>Corridor: {p.corridorWidthCm}cm</span>)
+                if (p.hearingLoop) badges.push(<span key="hl" className="badge-green">Hearing loop</span>)
+                if (p.brailleMenu) badges.push(<span key="brl" className="badge-green">Braille menu</span>)
+                if (p.quietRoom) badges.push(<span key="qr" className="badge-green">Quiet room</span>)
+                if (p.changingPlace) badges.push(<span key="cp" className="badge-green">Changing Place</span>)
+                if (p.allowsAssistanceDogs) badges.push(<span key="dog" className="badge-green">Assistance dogs ✓</span>)
+                if (p.hasWheelchairSeating) badges.push(<span key="ws" className="badge-green">WC seating{p.wheelchairSeatingCount ? ` · ${p.wheelchairSeatingCount}` : ''}</span>)
+
                 return (
                   <div
                     key={p.id}
                     className="border-b border-[#f1f3f4] last:border-0"
                     style={{ animation: 'pageIn 280ms ease-out both', animationDelay: `${Math.min(i, 10) * 35}ms` }}
                   >
-                    {/* Photo */}
+                    {/* Photo banner */}
                     {p.imageUrl && (
-                      <div className="relative h-32 w-full overflow-hidden bg-[#f1f3f4]">
+                      <div className="relative h-36 w-full overflow-hidden bg-[#f1f3f4]">
                         <img
                           src={p.imageUrl}
                           alt={p.name}
                           className="h-full w-full object-cover"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                         />
-                        {/* Score pill over photo */}
-                        <div className="absolute left-2 bottom-2">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                        <div className="absolute bottom-2 left-3">
                           {p.accessScore != null ? (
                             <span
                               className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-white shadow"
@@ -602,205 +608,81 @@ export default function MapPage() {
                             >
                               {p.accessScore.toFixed(1)}/10 · {p.accessLabel}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-black/50 px-2.5 py-1 text-xs font-medium text-white">
-                              Unrated
-                            </span>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     )}
 
-                    <div className="px-4 py-3">
+                    <div className="px-4 pb-4 pt-3">
+                      {/* Name row */}
                       <div className="flex items-start gap-2">
-                        <button
-                          onClick={() => setFocus({ lat: p.lat, lng: p.lng, zoom: 17 })}
-                          className="min-w-0 flex-1 text-left"
-                          aria-label={`Focus map on ${p.name}`}
-                        >
-                          <p className="font-semibold text-[#202124] leading-tight">{p.name}</p>
-                          <p className="mt-0.5 text-xs text-[#6b7280]">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold leading-snug text-[#202124]">{p.name}</p>
+                          <p className="mt-0.5 text-xs text-[#6b7280] truncate">
                             {p.address || activeCatMeta?.label}
                             {dist != null && (
-                              <span className="ml-1 text-[#1a73e8]">
+                              <span className="ml-1 font-medium text-[#1a73e8]">
                                 · {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`}
                               </span>
                             )}
                           </p>
-                        </button>
+                        </div>
                         <a
                           href={googleMapsTo([p.lat, p.lng])}
                           target="_blank"
                           rel="noreferrer"
                           aria-label={`Directions to ${p.name}`}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#dadce0] text-primary hover:bg-primary hover:text-white hover:border-primary transition-colors"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#dadce0] text-[#5f6368] hover:bg-primary hover:text-white hover:border-primary transition-colors"
                         >
-                          <ExternalLink size={13} aria-hidden="true" />
+                          <ExternalLink size={13} />
                         </a>
                       </div>
 
-                      {/* Score without photo */}
-                      {!p.imageUrl && (
+                      {/* Score pill (only when no photo) */}
+                      {!p.imageUrl && p.accessScore != null && (
                         <div className="mt-2">
-                          {p.accessScore != null ? (
-                            <span
-                              className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
-                              style={{ background: scoreColor(p.accessScore) }}
-                            >
-                              <Accessibility size={10} aria-hidden="true" />
-                              {p.accessScore.toFixed(1)}/10 · {p.accessLabel}
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold text-white"
+                            style={{ background: scoreColor(p.accessScore) }}
+                          >
+                            <Accessibility size={10} /> {p.accessScore.toFixed(1)}/10 · {p.accessLabel}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Score breakdown — compact single line */}
+                      {bd.base !== null && (
+                        <div className="mt-2 rounded-lg bg-[#f8f9fa] px-3 py-2 text-[11px] leading-relaxed text-[#5f6368]">
+                          <span className="font-semibold text-[#202124]">Base {bd.base}/10</span>
+                          {' — '}{bd.baseReason}
+                          {bd.bonuses.length > 0 && (
+                            <span className="text-[#1e8e3e]">
+                              {' · '}
+                              {bd.bonuses.map(b => `+${b.points} ${b.label.replace(' ✓', '')}`).join(' · ')}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f3f4] px-2.5 py-0.5 text-xs text-[#6b7280]">
-                              <Info size={10} aria-hidden="true" /> Unrated
+                          )}
+                          {bd.penalties.length > 0 && (
+                            <span className="text-[#c5221f]">
+                              {' · '}
+                              {bd.penalties.map(b => `${b.points} ${b.label.replace(' ⚠', '')}`).join(' · ')}
                             </span>
+                          )}
+                          {(bd.confidence === 'low' || bd.confidence === 'none') && (
+                            <span className="ml-1 text-[#9aa0a6]">· estimated</span>
                           )}
                         </div>
                       )}
 
-                      {/* Score breakdown */}
-                      {bd.base !== null && (
-                        <div className="mt-2.5 rounded-lg bg-[#f8f9fa] px-3 py-2 text-[11px]">
-                          <p className="font-semibold text-[#202124] mb-1">Score breakdown</p>
-                          <p className="text-[#6b7280]">Base: {bd.base}/10 — {bd.baseReason}</p>
-                          {bd.bonuses.map(b => (
-                            <p key={b.label} className="text-[#1e8e3e]">+{b.points} {b.label}</p>
-                          ))}
-                          {bd.penalties.map(p => (
-                            <p key={p.label} className="text-[#c5221f]">{p.points} {p.label}</p>
-                          ))}
-                          {bd.confidence === 'low' || bd.confidence === 'none' ? (
-                            <p className="mt-1 text-[#9aa0a6] italic">⚠ Estimated from surface data — not OSM-confirmed</p>
-                          ) : null}
+                      {/* All feature badges in one wrapping row */}
+                      {badges.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {badges}
                         </div>
                       )}
 
-                      {/* Physical features — labelled badges with measurements */}
-                      <div className="mt-2.5 space-y-1.5">
-                        {/* Terrain */}
-                        {p.terrain !== 'Unknown' && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="badge"><Mountain size={10} aria-hidden="true" /> {p.surface ? `${p.surface} surface` : p.terrain + ' surface'}</span>
-                          </div>
-                        )}
-
-                        {/* Steps / kerb */}
-                        {(p.stepCount != null || p.stepHeightCm != null || p.kerbType) && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {p.stepCount != null && p.stepCount > 0 && (
-                              <span className="badge border-[#c5221f]/30 bg-[#fce8e6] text-[#c5221f]">
-                                <Info size={10} aria-hidden="true" />
-                                {p.stepCount} step{p.stepCount !== 1 ? 's' : ''} at entrance
-                                {p.stepHeightCm != null ? ` (${p.stepHeightCm} cm each)` : ''}
-                              </span>
-                            )}
-                            {p.stepCount === 0 && (
-                              <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                                <CheckCircle2 size={10} aria-hidden="true" /> Step-free entrance
-                              </span>
-                            )}
-                            {p.kerbType && (
-                              <span className={`badge ${p.kerbType === 'flush' || p.kerbType === 'lowered' ? 'text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]' : ''}`}>
-                                Kerb: {p.kerbType}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Ramp */}
-                        {p.hasRamp && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                              <ArrowUpDown size={10} aria-hidden="true" />
-                              Ramp{p.rampGradient != null ? ` · ${p.rampGradient.toFixed(0)}% gradient` : ''}
-                              {p.rampWidthCm != null ? ` · ${p.rampWidthCm} cm wide` : ''}
-                            </span>
-                            {p.rampHasHandrail === true && (
-                              <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Handrail ✓</span>
-                            )}
-                            {p.rampHasHandrail === false && (
-                              <span className="badge">No handrail</span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Door */}
-                        {(p.doorType || p.doorWidthCm != null) && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className={`badge ${p.doorType === 'Automatic' ? 'text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]' : ''}`}>
-                              <Zap size={10} aria-hidden="true" />
-                              {p.doorType ?? 'Door'}{p.doorWidthCm != null ? ` · ${p.doorWidthCm} cm clear width` : ''}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Lift */}
-                        {p.hasLift && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                              <Zap size={10} aria-hidden="true" />
-                              Lift{p.liftWidthCm != null ? ` · ${p.liftWidthCm} cm wide` : ''}
-                              {p.liftDepthCm != null ? ` × ${p.liftDepthCm} cm deep` : ''}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Accessible toilet */}
-                        {p.accessibleToilet && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                              <Toilet size={10} aria-hidden="true" /> Accessible WC
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Disabled parking */}
-                        {p.hasDisabledParking && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                              <Car size={10} aria-hidden="true" />
-                              Disabled parking{p.disabledParkingSpaces != null ? ` · ${p.disabledParkingSpaces} space${p.disabledParkingSpaces !== 1 ? 's' : ''}` : ''}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Tactile + entrance level */}
-                        {(p.tactile || p.entranceLevel) && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {p.tactile && <span className="badge">Tactile paving</span>}
-                            {p.entranceLevel && <span className="badge">Accessible entry: level {p.entranceLevel}</span>}
-                          </div>
-                        )}
-
-                        {/* Corridor width */}
-                        {p.corridorWidthCm != null && (
-                          <div className="flex flex-wrap gap-1.5">
-                            <span className={`badge ${p.corridorWidthCm >= 120 ? 'text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]' : p.corridorWidthCm < 80 ? 'border-[#c5221f]/30 bg-[#fce8e6] text-[#c5221f]' : ''}`}>
-                              Corridor: {p.corridorWidthCm} cm wide
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Sensory / hearing / extra */}
-                        {(p.hearingLoop || p.brailleMenu || p.quietRoom || p.changingPlace || p.allowsAssistanceDogs || p.hasWheelchairSeating) && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {p.hearingLoop && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Hearing loop</span>}
-                            {p.brailleMenu && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Braille menu</span>}
-                            {p.quietRoom && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Quiet room</span>}
-                            {p.changingPlace && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Changing Place</span>}
-                            {p.allowsAssistanceDogs && <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">Assistance dogs welcome</span>}
-                            {p.hasWheelchairSeating && (
-                              <span className="badge text-[#1e8e3e] border-[#1e8e3e]/30 bg-[#e6f4ea]">
-                                Wheelchair seating{p.wheelchairSeatingCount != null ? ` (${p.wheelchairSeatingCount} spaces)` : ''}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Mapper's accessibility note */}
+                      {/* Mapper note */}
                       {p.wheelchairDescription && (
-                        <p className="mt-2 text-[11px] italic text-[#6b7280] leading-snug">
+                        <p className="mt-2 text-[11px] italic leading-snug text-[#6b7280]">
                           "{p.wheelchairDescription}"
                         </p>
                       )}
@@ -810,16 +692,16 @@ export default function MapPage() {
 
                       {/* Opening hours */}
                       {p.openingHours && (
-                        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#6b7280]">
-                          <Clock size={10} aria-hidden="true" /> {p.openingHours}
+                        <p className="mt-2 flex items-center gap-1 text-[11px] text-[#6b7280]">
+                          <Clock size={10} /> {p.openingHours}
                         </p>
                       )}
 
-                      {/* Detail page + OSM links */}
-                      <div className="mt-2 flex items-center gap-3">
+                      {/* Actions */}
+                      <div className="mt-3 flex items-center gap-2">
                         <a
                           href={`/place/${p.id}?lat=${p.lat}&lng=${p.lng}&name=${encodeURIComponent(p.name)}`}
-                          className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white hover:bg-primary/90"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-primary/90 transition-colors"
                         >
                           Full details →
                         </a>

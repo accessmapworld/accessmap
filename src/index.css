@@ -141,6 +141,12 @@ html.a11y-reduce-motion *::after {
   .badge {
     @apply inline-flex items-center gap-1 rounded-full border border-[#dadce0] bg-white px-2 py-0.5 text-[11px] text-[#5f6368];
   }
+  .badge-green {
+    @apply inline-flex items-center gap-1 rounded-full border border-[#1e8e3e]/25 bg-[#e6f4ea] px-2 py-0.5 text-[11px] text-[#1e8e3e];
+  }
+  .badge-red {
+    @apply inline-flex items-center gap-1 rounded-full border border-[#c5221f]/25 bg-[#fce8e6] px-2 py-0.5 text-[11px] text-[#c5221f];
+  }
 }
 
 /* ─── Reduced motion (always respect the OS setting) ─────────────── */
