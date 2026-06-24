@@ -2,6 +2,7 @@ import {
   Utensils, Coffee, Hotel, Cross, Pill, GraduationCap, ShoppingBag,
   Landmark, TreePine, Banknote, type LucideIcon,
 } from 'lucide-react'
+import { spaced } from './rateLimit'
 
 export interface Poi {
   id: string
@@ -100,6 +101,7 @@ export async function nearbyByCategory(
 ): Promise<Poi[]> {
   const cat = CATEGORIES.find((c) => c.key === category)
   if (!cat) return []
+  await spaced('overpass', 1200) // be gentle with the public Overpass endpoint
   const [lat, lng] = center
   const q = `
     [out:json][timeout:25];

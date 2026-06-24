@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore'
 import type { Place, Review, Alert } from '../types'
 import { mockPlaces, mockReviews, mockAlerts } from './mockData'
+import { checkRate } from './rateLimit'
 
 /* ------------------------------------------------------------------ *
  * Local store: keeps the UI fully functional without a backend.
@@ -51,6 +52,7 @@ export async function getPlace(id: string): Promise<Place | null> {
 }
 
 export async function addPlace(input: Omit<Place, 'id' | 'lastUpdated' | 'reviewCount'>): Promise<Place> {
+  checkRate('listing', { minGapMs: 15000, maxPerHour: 8, label: 'business listing' })
   const base = { ...input, reviewCount: 0, lastUpdated: Date.now() }
   if (!FIREBASE_ENABLED || !db) {
     const place: Place = { ...base, id: 'biz-' + uid() }
@@ -72,6 +74,7 @@ export async function getReviews(placeId: string): Promise<Review[]> {
 }
 
 export async function addReview(input: Omit<Review, 'id' | 'createdAt'>): Promise<Review> {
+  checkRate('review', { minGapMs: 8000, maxPerHour: 15, label: 'review' })
   if (!FIREBASE_ENABLED || !db) {
     const review: Review = { ...input, id: uid(), createdAt: Date.now() }
     local.reviews.unshift(review)
@@ -103,6 +106,7 @@ export async function getAlerts(placeId?: string, onlyActive = true): Promise<Al
 }
 
 export async function addAlert(input: Omit<Alert, 'id' | 'createdAt' | 'status'>): Promise<Alert> {
+  checkRate('report', { minGapMs: 8000, maxPerHour: 20, label: 'report' })
   if (!FIREBASE_ENABLED || !db) {
     const alert: Alert = { ...input, id: uid(), status: 'active', createdAt: Date.now() }
     local.alerts.unshift(alert)

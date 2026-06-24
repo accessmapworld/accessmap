@@ -23,25 +23,31 @@ export default function ReportForm({ placeId, onDone }: { placeId?: string; onDo
   const [photo, setPhoto] = useState<{ url: string; verified: boolean; confidence: number } | null>(null)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const [err, setErr] = useState('')
 
   useEffect(() => { if (!placeId) getPlaces().then(setPlaces) }, [placeId])
   const valid = selected && description.trim().length >= 8
 
   async function submit() {
     if (!valid) return
-    setBusy(true)
-    await addAlert({
-      placeId: selected,
-      type,
-      description: description.trim(),
-      reportedBy: user?.displayName ?? 'Anonymous',
-      photoUrl: photo?.url,
-      aiVerified: photo?.verified ?? false,
-      aiConfidence: photo?.confidence,
-    })
-    setBusy(false)
-    setDone(true)
-    setTimeout(() => onDone?.(), 900)
+    setBusy(true); setErr('')
+    try {
+      await addAlert({
+        placeId: selected,
+        type,
+        description: description.trim(),
+        reportedBy: user?.displayName ?? 'Anonymous',
+        photoUrl: photo?.url,
+        aiVerified: photo?.verified ?? false,
+        aiConfidence: photo?.confidence,
+      })
+      setDone(true)
+      setTimeout(() => onDone?.(), 900)
+    } catch (e: any) {
+      setErr(e?.message ?? 'Something went wrong. Please try again.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (done) return <p className="py-6 text-center text-alert">Report submitted — it’s now live on the place ⚠</p>
@@ -81,6 +87,7 @@ export default function ReportForm({ placeId, onDone }: { placeId?: string; onDo
         </div>
       </div>
 
+      {err && <p className="text-sm text-alert">{err}</p>}
       <button disabled={!valid || busy} onClick={submit} className="btn-alert w-full disabled:opacity-50">
         {busy ? <Loader2 className="animate-spin" size={16} /> : null} Submit report
       </button>

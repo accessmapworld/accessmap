@@ -39,6 +39,7 @@ export default function BusinessRegister() {
   const [sponsored, setSponsored] = useState(true)
   const [busy, setBusy] = useState(false)
   const [created, setCreated] = useState<string | null>(null)
+  const [err, setErr] = useState('')
 
   useEffect(() => {
     if (q.trim().length < 3) { setResults([]); return }
@@ -57,22 +58,27 @@ export default function BusinessRegister() {
 
   async function submit() {
     if (!valid || !geo) return
-    setBusy(true)
-    const place = await addPlace({
-      name: name.trim(),
-      address: geo.displayName.split(',').slice(0, 3).join(',').trim(),
-      lat: geo.lat,
-      lng: geo.lng,
-      scores,
-      category,
-      contact: contact.trim() || undefined,
-      features: [...features],
-      sponsored,
-      selfListed: true,
-      osmId: geo.osmId,
-    })
-    setBusy(false)
-    setCreated(place.id)
+    setBusy(true); setErr('')
+    try {
+      const place = await addPlace({
+        name: name.trim(),
+        address: geo.displayName.split(',').slice(0, 3).join(',').trim(),
+        lat: geo.lat,
+        lng: geo.lng,
+        scores,
+        category,
+        contact: contact.trim() || undefined,
+        features: [...features],
+        sponsored,
+        selfListed: true,
+        osmId: geo.osmId,
+      })
+      setCreated(place.id)
+    } catch (e: any) {
+      setErr(e?.message ?? 'Something went wrong. Please try again.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (created) {
@@ -199,6 +205,7 @@ export default function BusinessRegister() {
             </button>
           </label>
 
+          {err && <p className="text-sm text-alert">{err}</p>}
           <button disabled={!valid || busy} onClick={submit} className="btn-primary w-full disabled:opacity-50">
             {busy ? <Loader2 className="animate-spin" size={16} /> : <Megaphone size={16} />}
             {sponsored ? 'Publish sponsored listing' : 'Publish free listing'}

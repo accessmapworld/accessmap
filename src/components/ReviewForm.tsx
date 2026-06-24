@@ -22,6 +22,7 @@ export default function ReviewForm({ placeId, onDone }: { placeId?: string; onDo
   const [photos, setPhotos] = useState<{ url: string; verified: boolean }[]>([])
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
+  const [err, setErr] = useState('')
 
   useEffect(() => { if (!placeId) getPlaces().then(setPlaces) }, [placeId])
 
@@ -29,20 +30,25 @@ export default function ReviewForm({ placeId, onDone }: { placeId?: string; onDo
 
   async function submit() {
     if (!valid) return
-    setBusy(true)
-    await addReview({
-      placeId: selected,
-      userId: user?.uid ?? 'anon',
-      userName: user?.displayName ?? 'Anonymous',
-      userPhoto: user?.photoURL,
-      scores,
-      body: body.trim(),
-      photos: photos.map((p) => p.url),
-      verified: photos.length > 0 && photos.every((p) => p.verified),
-    })
-    setBusy(false)
-    setDone(true)
-    setTimeout(() => onDone?.(), 900)
+    setBusy(true); setErr('')
+    try {
+      await addReview({
+        placeId: selected,
+        userId: user?.uid ?? 'anon',
+        userName: user?.displayName ?? 'Anonymous',
+        userPhoto: user?.photoURL,
+        scores,
+        body: body.trim(),
+        photos: photos.map((p) => p.url),
+        verified: photos.length > 0 && photos.every((p) => p.verified),
+      })
+      setDone(true)
+      setTimeout(() => onDone?.(), 900)
+    } catch (e: any) {
+      setErr(e?.message ?? 'Something went wrong. Please try again.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (done) return <p className="py-6 text-center text-primary">Thanks — your review is live ✓</p>
@@ -92,6 +98,7 @@ export default function ReviewForm({ placeId, onDone }: { placeId?: string; onDo
         </div>
       </div>
 
+      {err && <p className="text-sm text-alert">{err}</p>}
       <button disabled={!valid || busy} onClick={submit} className="btn-primary w-full disabled:opacity-50">
         {busy ? <Loader2 className="animate-spin" size={16} /> : null} Submit review
       </button>
