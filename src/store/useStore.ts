@@ -4,17 +4,20 @@ import {
   createUserWithEmailAndPassword, signOut, onAuthStateChanged,
 } from 'firebase/auth'
 import { auth, FIREBASE_ENABLED } from '../lib/firebase'
-import type { AppUser, FilterKey } from '../types'
+import type { AppUser, FilterKey, NeedsProfile } from '../types'
+import { DEFAULT_PROFILE } from '../lib/compatibility'
 
 interface AppState {
   user: AppUser | null
   authReady: boolean
   filters: Set<FilterKey>
   easyMode: boolean
+  needsProfile: NeedsProfile
   toggleFilter: (f: FilterKey) => void
   clearFilters: () => void
   toggleSaved: (placeId: string) => void
   toggleEasyMode: () => void
+  setNeedsProfile: (p: NeedsProfile) => void
   initAuth: () => void
   signInGoogle: () => Promise<void>
   signInEmail: (email: string, pw: string, name?: string, register?: boolean) => Promise<void>
@@ -45,6 +48,12 @@ export const useStore = create<AppState>((set, get) => ({
   authReady: false,
   filters: new Set(),
   easyMode: (() => { const v = loadEasyMode(); applyEasyMode(v); return v })(),
+  needsProfile: (() => { try { const r = localStorage.getItem('am.needs'); return r ? JSON.parse(r) : DEFAULT_PROFILE } catch { return DEFAULT_PROFILE } })(),
+
+  setNeedsProfile: (p) => {
+    try { localStorage.setItem('am.needs', JSON.stringify(p)) } catch { /* */ }
+    set({ needsProfile: p })
+  },
 
   toggleEasyMode: () =>
     set((s) => {

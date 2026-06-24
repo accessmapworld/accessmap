@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Megaphone, Map as MapIcon, Accessibility } from 'lucide-react'
+import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Megaphone, Map as MapIcon, Accessibility, UserCog } from 'lucide-react'
 import MapPin from './MapPin'
 import { useStore } from '../store/useStore'
+import { hasProfile } from '../lib/compatibility'
+import NeedsSetup from './NeedsSetup'
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors duration-150 ${
@@ -12,6 +15,9 @@ export default function Navbar() {
   const user = useStore((s) => s.user)
   const easyMode = useStore((s) => s.easyMode)
   const toggleEasyMode = useStore((s) => s.toggleEasyMode)
+  const needsProfile = useStore((s) => s.needsProfile)
+  const [showNeeds, setShowNeeds] = useState(false)
+  const profileSet = hasProfile(needsProfile)
 
   const links = [
     { to: '/map', label: 'Map', icon: MapIcon },
@@ -60,6 +66,21 @@ export default function Navbar() {
               </NavLink>
             )}
 
+            {/* My Needs profile */}
+            <button
+              onClick={() => setShowNeeds(true)}
+              aria-label={profileSet ? 'Edit your accessibility needs profile' : 'Set up your accessibility needs'}
+              title={profileSet ? 'Your accessibility profile is set' : 'Tell us your accessibility needs for personalised scores'}
+              className={`ml-1 flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                profileSet
+                  ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                  : 'border border-dashed border-primary/50 text-primary hover:bg-primary/5'
+              }`}
+            >
+              <UserCog size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">{profileSet ? 'My Needs ✓' : 'My Needs'}</span>
+            </button>
+
             {/* Accessibility Mode toggle */}
             <button
               onClick={toggleEasyMode}
@@ -99,6 +120,8 @@ export default function Navbar() {
           </div>
         )}
       </header>
+
+      {showNeeds && <NeedsSetup onClose={() => setShowNeeds(false)} />}
     </>
   )
 }

@@ -10,6 +10,8 @@ import ReportForm from '../components/ReportForm'
 import ReviewForm from '../components/ReviewForm'
 import { getPlace, getReviews, getAlerts, resolveAlert } from '../lib/data'
 import { useStore } from '../store/useStore'
+import { scorePlace, hasProfile } from '../lib/compatibility'
+import MatchBadge from '../components/MatchBadge'
 import type { Place, Review, Alert } from '../types'
 
 function timeAgo(ms: number) {
@@ -28,6 +30,7 @@ export default function PlaceDetail() {
   const [showReview, setShowReview] = useState(false)
   const user = useStore((s) => s.user)
   const toggleSaved = useStore((s) => s.toggleSaved)
+  const needsProfile = useStore((s) => s.needsProfile)
   const saved = user?.savedPlaces.includes(id)
 
   async function load() {
@@ -97,6 +100,17 @@ export default function PlaceDetail() {
           </button>
         )}
       </div>
+
+      {/* Personal match card — shown only when profile is set */}
+      {hasProfile(needsProfile) && (() => {
+        const match = scorePlace(place, needsProfile)
+        return (
+          <section className="mt-6" aria-label="Your personal accessibility match">
+            <h2 className="label mb-3">Your personal match</h2>
+            <MatchBadge result={match} size="md" />
+          </section>
+        )
+      })()}
 
       {/* Score card */}
       <section className="card mt-6 p-6">

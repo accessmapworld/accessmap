@@ -82,6 +82,26 @@ export type FilterKey =
   | 'sign'
   | 'hearingloop'
 
+export interface NeedsProfile {
+  mobility: 'none' | 'cane' | 'manual_wheelchair' | 'power_wheelchair' | 'scooter'
+  hearing: 'none' | 'hard_of_hearing' | 'deaf'
+  vision: 'none' | 'low_vision' | 'blind'
+  sensory: 'none' | 'sensitive' | 'severe'
+  // specific feature needs
+  needsLift: boolean
+  needsAccessibleToilet: boolean
+  needsHearingLoop: boolean
+  needsTactile: boolean
+  needsQuietSpace: boolean
+}
+
+export interface CompatibilityResult {
+  score: number          // 0–100
+  grade: 'great' | 'good' | 'limited' | 'poor'
+  warnings: string[]     // specific issues for this user
+  highlights: string[]   // specific positives for this user
+}
+
 export interface VerifyResult {
   verified: boolean
   confidence: number
