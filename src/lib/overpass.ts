@@ -202,6 +202,29 @@ function wikimediaThumb(id: string): string | undefined {
   return `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/ /g, '_'))}?width=400`
 }
 
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
+]
+
+async function overpassQuery(q: string, signal?: AbortSignal): Promise<any> {
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        body: 'data=' + encodeURIComponent(q),
+        signal,
+      })
+      if (res.ok) return await res.json()
+    } catch (e) {
+      if ((e as any)?.name === 'AbortError') throw e
+      // try next endpoint
+    }
+  }
+  throw new Error('All Overpass endpoints failed')
+}
+
 export async function nearbyByCategory(
   center: [number, number],
   category: CategoryKey,
@@ -210,22 +233,22 @@ export async function nearbyByCategory(
 ): Promise<Poi[]> {
   const cat = CATEGORIES.find((c) => c.key === category)
   if (!cat) return []
-  await spaced('overpass', 1200)
+  await spaced('overpass', 800)
   const [lat, lng] = center
   const q = `
-    [out:json][timeout:25];
+    [out:json][timeout:30];
     (
       node${cat.selector}["name"](around:${radius},${lat},${lng});
       way${cat.selector}["name"](around:${radius},${lat},${lng});
     );
-    out center tags 50;`
-  const res = await fetch('https://overpass-api.de/api/interpreter', {
-    method: 'POST',
-    body: 'data=' + encodeURIComponent(q),
-    signal,
-  })
-  if (!res.ok) return []
-  const data = await res.json()
+    out center tags 60;`
+  let data: any
+  try {
+    data = await overpassQuery(q, signal)
+  } catch (e) {
+    if ((e as any)?.name === 'AbortError') throw e
+    return []
+  }
   const seen = new Set<string>()
   const out: Poi[] = []
   for (const el of data.elements as any[]) {

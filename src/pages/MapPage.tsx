@@ -133,40 +133,51 @@ export default function MapPage() {
     if (!navigator?.geolocation) {
       ipCoords().then((c) => {
         setLocating(false)
-        if (c) {
-          setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 12 })
-          onDone?.(c)
-        } else {
-          showToast('Location unavailable — try searching for a place.', 'error')
-        }
+        if (c) { setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 13 }); onDone?.(c) }
+        else showToast('Location unavailable — try searching for a place.', 'error')
       })
       return
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        setLocating(false)
-        setLocToast(null)
+    let settled = false
+    function finish(lat: number, lng: number, precise: boolean, permDenied = false) {
+      if (settled) return
+      settled = true
+      setLocating(false)
+      setLocToast(null)
+      if (precise) {
         setUserLoc({ lat, lng })
-        setCenter([lat, lng])
-        setFocus({ lat, lng, zoom: 17 })
         startWatch()
-        onDone?.([lat, lng])
+      }
+      setCenter([lat, lng])
+      setFocus({ lat, lng, zoom: precise ? 17 : 13 })
+      if (!precise) {
+        showToast(
+          permDenied
+            ? 'Location permission denied — showing approximate area. Enable location in your browser settings for GPS.'
+            : 'Showing approximate location — GPS not available on this device.',
+          'info',
+        )
+      }
+      onDone?.([lat, lng])
+    }
+
+    // Track 1: high-accuracy GPS (may take a few seconds on mobile)
+    let gpsWatchId: number | null = null
+    gpsWatchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (gpsWatchId != null) navigator.geolocation.clearWatch(gpsWatchId)
+        finish(pos.coords.latitude, pos.coords.longitude, true)
+        startWatch()
       },
       async (err) => {
+        if (gpsWatchId != null) navigator.geolocation.clearWatch(gpsWatchId)
+        if (settled) return
+        // GPS failed — try IP as fallback
         const c = await ipCoords()
-        setLocating(false)
-        if (c) {
-          setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 13 })
-          showToast(
-            err.code === 1
-              ? 'Location permission denied — showing approximate area. Enable location in your browser settings for precise GPS.'
-              : 'GPS timed out — showing approximate area. Try again or search for a place.',
-            'info',
-          )
-          onDone?.(c)
-        } else {
+        if (c) finish(c[0], c[1], false, err.code === 1)
+        else {
+          setLocating(false)
           showToast(
             err.code === 1
               ? 'Location permission denied. Enable it in your browser settings, or search for a place.'
@@ -175,8 +186,19 @@ export default function MapPage() {
           )
         }
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
     )
+
+    // Track 2: after 4s if GPS hasn't responded, try low-accuracy (wifi/cell)
+    // which is instant on desktop — if it beats GPS, use it temporarily
+    setTimeout(() => {
+      if (settled) return
+      navigator.geolocation.getCurrentPosition(
+        (pos) => finish(pos.coords.latitude, pos.coords.longitude, true),
+        () => { /* let GPS track handle the error */ },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 },
+      )
+    }, 4000)
   }
 
   // Search autocomplete
@@ -197,11 +219,12 @@ export default function MapPage() {
     poiAbort.current?.abort()
     const ac = new AbortController(); poiAbort.current = ac
     try {
-      let found = await nearbyByCategory(c, cat, 3000, ac.signal)
-      if (found.length === 0) found = await nearbyByCategory(c, cat, 8000, ac.signal)
+      let found = await nearbyByCategory(c, cat, 5000, ac.signal)
+      if (found.length === 0) found = await nearbyByCategory(c, cat, 15000, ac.signal)
       setPois(found)
-    } catch { /* aborted or timeout */ }
-    finally { setLoadingPois(false) }
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') showToast('Search failed — check your connection and try again.', 'error')
+    } finally { setLoadingPois(false) }
   }
 
   function runCategory(cat: CategoryKey) {
