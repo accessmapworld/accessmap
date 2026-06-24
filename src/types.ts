@@ -23,6 +23,8 @@ export interface Place {
   selfListed?: boolean  // added by the business owner
   features?: string[]   // self-reported accessibility features
   contact?: string
+  terrainRating?: number  // 1-5: 1=flat/paved, 5=very rough/steep
+  trailDifficulty?: 'easy' | 'moderate' | 'hard' | 'expert'
 }
 
 export interface Review {

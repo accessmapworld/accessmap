@@ -196,7 +196,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-border py-8 text-center text-sm text-muted">
+      <footer className="border-t border-border py-10 text-center text-sm text-muted">
         <div className="flex items-center justify-center gap-2">
           <MapPin size={16} className="text-primary" />
           <span className="font-semibold text-ink">Access<span className="text-primary">Map</span></span>
@@ -205,8 +205,9 @@ export default function Home() {
         <nav className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <Link to="/map" className="hover:text-ink">Map</Link>
           <Link to="/business" className="hover:text-ink">For Business</Link>
-          <Link to="/privacy" className="hover:text-ink">Privacy</Link>
-          <Link to="/terms" className="hover:text-ink">Terms</Link>
+          <Link to="/report" className="hover:text-ink">Report an Issue</Link>
+          <Link to="/privacy" className="hover:text-ink">Privacy Policy</Link>
+          <Link to="/terms" className="hover:text-ink">Terms of Service</Link>
         </nav>
         <p className="mt-3 text-xs">
           Map data ©{' '}
@@ -215,6 +216,7 @@ export default function Home() {
           </a>{' '}
           contributors
         </p>
+        <p className="mt-2 text-xs text-muted/60">© {new Date().getFullYear()} AccessMap. Accessibility data is community-sourced and may not be complete or accurate. Do not rely solely on AccessMap for safety-critical decisions.</p>
       </footer>
     </Layout>
   )

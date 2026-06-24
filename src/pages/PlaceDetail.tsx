@@ -107,6 +107,38 @@ export default function PlaceDetail() {
           <ScoreRing score={place.scores.hearing} label="Hearing" />
           <ScoreRing score={place.scores.vision} label="Vision" />
         </div>
+        {(place.terrainRating || place.trailDifficulty) && (
+          <div className="mt-5 border-t border-border pt-5">
+            <h3 className="label mb-3">Terrain & Trail</h3>
+            <div className="flex flex-wrap gap-3">
+              {place.terrainRating && (() => {
+                const labels = ['', 'Flat / Paved', 'Mostly Flat', 'Some Slopes', 'Hilly', 'Steep / Rough']
+                const colors = ['', '#1e8e3e', '#3d8b40', '#f29900', '#e67c00', '#ea4335']
+                return (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted">Terrain</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium text-white"
+                      style={{ background: colors[place.terrainRating] }}>
+                      {labels[place.terrainRating]}
+                    </span>
+                  </div>
+                )
+              })()}
+              {place.trailDifficulty && (() => {
+                const colors: Record<string, string> = { easy: '#1e8e3e', moderate: '#f29900', hard: '#e67c00', expert: '#ea4335' }
+                return (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted">Trail difficulty</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium capitalize text-white"
+                      style={{ background: colors[place.trailDifficulty] }}>
+                      {place.trailDifficulty}
+                    </span>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Actions */}

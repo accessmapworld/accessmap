@@ -369,7 +369,12 @@ export default function MapPage() {
               <button onClick={() => { dismissIntro(); locate(true) }} className="btn-primary flex-1"><LocateFixed size={16} /> Use my location</button>
               <button onClick={dismissIntro} className="btn-ghost flex-1">Explore the map</button>
             </div>
-            <p className="label mt-4">Crowdsourced · Community-verified · Free</p>
+            <p className="mt-4 text-xs text-muted/70 leading-relaxed">
+              By using AccessMap you agree to our{' '}
+              <a href="/terms" className="underline hover:text-primary">Terms of Service</a> and{' '}
+              <a href="/privacy" className="underline hover:text-primary">Privacy Policy</a>.
+              Location data is used only to show your position on the map and is never stored without consent.
+            </p>
           </div>
         </div>
       )}

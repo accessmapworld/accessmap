@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { MapPin as MapPinIcon, AlertTriangle } from 'lucide-react'
+import { MapPin as MapPinIcon, AlertTriangle, Mountain } from 'lucide-react'
 import type { Place, Dimension } from '../types'
 import { scoreColor } from './ScoreRing'
 
@@ -15,6 +15,13 @@ const DIMS: { key: Dimension; label: string }[] = [
   { key: 'hearing', label: 'H' },
   { key: 'vision', label: 'V' },
 ]
+
+const TERRAIN_LABELS = ['', 'Flat', 'Mostly Flat', 'Some Slopes', 'Hilly', 'Steep']
+const TERRAIN_COLORS = ['', '#1e8e3e', '#3d8b40', '#f29900', '#e67c00', '#ea4335']
+
+const DIFFICULTY_COLORS: Record<string, string> = {
+  easy: '#1e8e3e', moderate: '#f29900', hard: '#e67c00', expert: '#ea4335',
+}
 
 export default function PlaceCard({ place, hasAlert, style }: Props) {
   return (
@@ -34,7 +41,7 @@ export default function PlaceCard({ place, hasAlert, style }: Props) {
       <p className="mt-1 flex items-center gap-1 text-sm text-muted">
         <MapPinIcon size={13} /> {place.address}
       </p>
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex items-center gap-3 flex-wrap">
         {DIMS.map(({ key, label }) => (
           <div key={key} className="flex items-center gap-1.5">
             <span
@@ -46,6 +53,20 @@ export default function PlaceCard({ place, hasAlert, style }: Props) {
             </span>
           </div>
         ))}
+        {place.terrainRating && (
+          <div className="flex items-center gap-1.5">
+            <Mountain size={11} style={{ color: TERRAIN_COLORS[place.terrainRating] }} />
+            <span className="font-mono text-xs text-muted" style={{ color: TERRAIN_COLORS[place.terrainRating] }}>
+              {TERRAIN_LABELS[place.terrainRating]}
+            </span>
+          </div>
+        )}
+        {place.trailDifficulty && (
+          <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white capitalize"
+            style={{ background: DIFFICULTY_COLORS[place.trailDifficulty] }}>
+            {place.trailDifficulty}
+          </span>
+        )}
       </div>
     </Link>
   )
