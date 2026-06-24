@@ -24,16 +24,6 @@ interface AppState {
   logout: () => Promise<void>
 }
 
-const MOCK_USER: AppUser = {
-  uid: 'demo-admin',
-  displayName: 'Demo Admin',
-  email: 'demo@accessmap.app',
-  role: 'admin',
-  premium: true,
-  savedPlaces: ['getty-la', 'central-park-vc-nyc'],
-  reviewCount: 4,
-  reportCount: 1,
-}
 
 function loadEasyMode(): boolean {
   try { return localStorage.getItem('am.easyMode') === '1' } catch { return false }
@@ -108,18 +98,12 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   signInGoogle: async () => {
-    if (!FIREBASE_ENABLED || !auth) {
-      set({ user: MOCK_USER })
-      return
-    }
+    if (!FIREBASE_ENABLED || !auth) throw new Error('Firebase is not configured.')
     await signInWithPopup(auth, new GoogleAuthProvider())
   },
 
   signInEmail: async (email, pw, name, register) => {
-    if (!FIREBASE_ENABLED || !auth) {
-      set({ user: { ...MOCK_USER, displayName: name || email.split('@')[0], email, role: 'user', premium: false } })
-      return
-    }
+    if (!FIREBASE_ENABLED || !auth) throw new Error('Firebase is not configured.')
     if (register) await createUserWithEmailAndPassword(auth, email, pw)
     else await signInWithEmailAndPassword(auth, email, pw)
   },
