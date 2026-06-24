@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 
 const UPDATED = 'June 2026'
-const CONTACT = 'support@accessmap.app' // ← replace with your real contact email
 const ENTITY = 'AccessMap' // ← replace with your legal entity name if different
 const JURISDICTION = 'your jurisdiction' // ← replace, e.g. "the State of California, USA"
 
@@ -100,7 +99,7 @@ export default function Terms() {
         <P>These Terms are governed by the laws of {JURISDICTION}, without regard to conflict-of-law rules.</P>
 
         <H>12. Contact</H>
-        <P>Questions about these Terms? Email <a className="text-primary" href={`mailto:${CONTACT}`}>{CONTACT}</a>.</P>
+        <P>Questions about these Terms? Use the Report feature in the app to get in touch with us.</P>
 
         <p className="mt-10 text-sm">
           <Link to="/privacy" className="text-primary">Privacy Policy</Link> ·{' '}

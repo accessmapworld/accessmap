@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom'
 import Layout from '../components/Layout'
 
 const UPDATED = 'June 2026'
-const CONTACT = 'support@accessmap.app' // ← replace with your real contact email
 const ENTITY = 'AccessMap' // ← replace with your legal entity name if different
 
 function H({ children }: { children: React.ReactNode }) {
@@ -88,7 +87,7 @@ export default function Privacy() {
         <P>We may update this policy; material changes will be reflected by the “Last updated” date above.</P>
 
         <H>Contact</H>
-        <P>Questions? Email <a className="text-primary" href={`mailto:${CONTACT}`}>{CONTACT}</a>.</P>
+        <P>Questions or data requests? Use the Report feature in the app to get in touch with us.</P>
 
         <p className="mt-10 text-xs text-muted">
           Map data © OpenStreetMap contributors, available under the Open Database License (ODbL).
