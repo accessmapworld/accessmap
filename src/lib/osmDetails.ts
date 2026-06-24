@@ -1,5 +1,6 @@
 import type { AccessSpecs } from '../types'
 import { deriveAccess, type ScoreBreakdown } from './overpass'
+import { fetchWikiImage } from './wikipedia'
 
 export interface OsmData {
   osmId?: string
@@ -121,6 +122,10 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
   else if (t.wikimedia_commons) {
     const file = t.wikimedia_commons.replace(/^(File:|Category:)/, '').trim()
     imageUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/ /g, '_'))}?width=800`
+  }
+  // Fall back to Wikipedia thumbnail
+  if (!imageUrl && t.name) {
+    imageUrl = await fetchWikiImage(t.name) || undefined
   }
 
   // ── Extras ────────────────────────────────────────────────────────

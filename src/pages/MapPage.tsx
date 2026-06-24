@@ -12,6 +12,7 @@ import { scoreColor } from '../components/ScoreRing'
 import { getPlaces, getAlerts } from '../lib/data'
 import { searchPlaces, type GeoResult } from '../lib/nominatim'
 import { CATEGORIES, categoryColor, nearbyByCategory, haversineKm, type Poi, type CategoryKey } from '../lib/overpass'
+import { batchWikiImages } from '../lib/wikipedia'
 import { googleMapsTo } from '../lib/maps'
 import { scorePlace, hasProfile } from '../lib/compatibility'
 import { useStore } from '../store/useStore'
@@ -227,12 +228,25 @@ export default function MapPage() {
     poiAbort.current?.abort()
     const ac = new AbortController(); poiAbort.current = ac
     try {
-      let found = await nearbyByCategory(c, cat, 5000, ac.signal)
-      if (found.length === 0) found = await nearbyByCategory(c, cat, 15000, ac.signal)
-      setPois(found)
+      let result = await nearbyByCategory(c, cat, 5000, ac.signal)
+      if (result.pois.length === 0) result = await nearbyByCategory(c, cat, 15000, ac.signal)
+      setPois(result.pois)
+      setLoadingPois(false)
+      // Patch in Wikipedia images for POIs without an OSM image
+      if (result.needsImage.length > 0 && !ac.signal.aborted) {
+        batchWikiImages(result.needsImage, 4).then((wikiMap) => {
+          if (ac.signal.aborted) return
+          setPois(prev => prev.map(poi =>
+            !poi.imageUrl && wikiMap.has(poi.name)
+              ? { ...poi, imageUrl: wikiMap.get(poi.name) }
+              : poi
+          ))
+        }).catch(() => {/* ignore */})
+      }
     } catch (e: any) {
       if (e?.name !== 'AbortError') showToast('Search failed — check your connection and try again.', 'error')
-    } finally { setLoadingPois(false) }
+      setLoadingPois(false)
+    }
   }
 
   function runCategory(cat: CategoryKey) {

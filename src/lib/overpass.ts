@@ -3,6 +3,7 @@ import {
   Landmark, TreePine, Banknote, type LucideIcon,
 } from 'lucide-react'
 import { spaced } from './rateLimit'
+import { batchWikiImages } from './wikipedia'
 
 export interface ScoreBreakdown {
   base: number | null
@@ -75,7 +76,23 @@ function terrainFrom(tags: Record<string, string>): { terrain: string; surface?:
  *   inferred rough     → 1.5
  *   no data            → null (shown as Unrated)
  */
-export function deriveAccess(tags: Record<string, string>): Omit<Poi,
+// Category-level priors applied when OSM has wheelchair=yes but no detail tags.
+// These reflect legally-mandated or statistically typical accessibility for the venue type.
+const CATEGORY_PRIORS: Partial<Record<CategoryKey, {
+  inferLift?: boolean
+  inferToilet?: boolean
+  inferParking?: boolean
+  baseBonus?: number  // bonus when totally unrated (no wheelchair tag at all)
+  baseBonusReason?: string
+}>> = {
+  hospital:  { inferLift: true,  inferToilet: true,  inferParking: true,  baseBonus: 3.0, baseBonusReason: 'Healthcare facility — legally required to be accessible' },
+  pharmacy:  { inferToilet: false, inferParking: false, baseBonus: 1.5, baseBonusReason: 'Pharmacy — typically step-free entrance' },
+  hotel:     { inferLift: true,  baseBonus: 1.0, baseBonusReason: 'Hotel — usually has accessible rooms and lift' },
+  bank:      { baseBonus: 0.5, baseBonusReason: 'Bank/ATM — typically step-free entrance required' },
+  school:    { baseBonus: 0.3, baseBonusReason: 'School — public buildings usually accessible' },
+}
+
+export function deriveAccess(tags: Record<string, string>, category?: CategoryKey): Omit<Poi,
   'id' | 'osmId' | 'name' | 'lat' | 'lng' | 'category' | 'address'
   | 'imageUrl' | 'openingHours' | 'phone' | 'website' | 'wheelchairDescription'
 > {
@@ -121,16 +138,31 @@ export function deriveAccess(tags: Record<string, string>): Omit<Poi,
     base = 1.5; baseReason = 'Rough/unpaved — likely inaccessible'; confidence = 'low'; inferred = true
   }
 
+  // ── Category-based priors (applied when wheelchair=yes, no detail tags) ──
+  const prior = category ? CATEGORY_PRIORS[category] : undefined
+  // For unrated places with no base, apply category base bonus
+  if (base === null && prior?.baseBonus) {
+    base = 3.5 + prior.baseBonus   // start from a low base + category bonus
+    baseReason = prior.baseBonusReason ?? 'Category-inferred accessibility'
+    confidence = 'low'
+    inferred = true
+  }
+
+  // Resolve effective flags (real tag OR category prior)
+  const effectiveLift    = hasLift    || (!hasLift    && wheelchair === 'yes' && !!prior?.inferLift)
+  const effectiveToilet  = accessibleToilet || (!accessibleToilet && wheelchair === 'yes' && !!prior?.inferToilet)
+  const effectiveParking = hasDisabledParking || (!hasDisabledParking && wheelchair === 'yes' && !!prior?.inferParking)
+
   // ── Bonuses ───────────────────────────────────────────────────────
   const bonuses: { label: string; points: number }[] = []
   if (base !== null && wheelchair !== 'no') {
-    if (accessibleToilet)  bonuses.push({ label: 'Accessible toilet ✓', points: 1.0 })
+    if (effectiveToilet)   bonuses.push({ label: accessibleToilet ? 'Accessible toilet ✓' : 'Accessible toilet (typical for this venue) ✓', points: 1.0 })
     if (tactile)           bonuses.push({ label: 'Tactile paving ✓', points: 0.5 })
     if (terrain === 'Smooth' && !inferred) bonuses.push({ label: 'Smooth flooring ✓', points: 0.5 })
     if (hasRamp && wheelchair !== 'yes') bonuses.push({ label: 'Ramp present ✓', points: 0.5 })
-    if (hasLift)           bonuses.push({ label: 'Lift/elevator ✓', points: 0.5 })
+    if (effectiveLift)     bonuses.push({ label: hasLift ? 'Lift/elevator ✓' : 'Lift (typical for this venue) ✓', points: 0.5 })
     if (doorType === 'Automatic') bonuses.push({ label: 'Automatic doors ✓', points: 0.3 })
-    if (hasDisabledParking) bonuses.push({ label: 'Disabled parking ✓', points: 0.2 })
+    if (effectiveParking)  bonuses.push({ label: hasDisabledParking ? 'Disabled parking ✓' : 'Disabled parking (typical) ✓', points: 0.2 })
   }
 
   // ── Penalties ─────────────────────────────────────────────────────
@@ -171,8 +203,14 @@ export function deriveAccess(tags: Record<string, string>): Omit<Poi,
   return {
     wheelchair, accessScore: total, accessLabel,
     breakdown: { base, baseReason, bonuses, penalties, total, confidence },
-    terrain, surface, accessibleToilet, tactile,
-    hasRamp, rampNote, hasLift, hasDisabledParking, doorType,
+    terrain, surface,
+    accessibleToilet: effectiveToilet,
+    tactile,
+    hasRamp,
+    rampNote,
+    hasLift: effectiveLift,
+    hasDisabledParking: effectiveParking,
+    doorType,
   }
 }
 
@@ -230,9 +268,9 @@ export async function nearbyByCategory(
   category: CategoryKey,
   radius = 2000,
   signal?: AbortSignal,
-): Promise<Poi[]> {
+): Promise<{ pois: Poi[]; needsImage: string[] }> {
   const cat = CATEGORIES.find((c) => c.key === category)
-  if (!cat) return []
+  if (!cat) return { pois: [], needsImage: [] }
   await spaced('overpass', 800)
   const [lat, lng] = center
   const q = `
@@ -247,10 +285,12 @@ export async function nearbyByCategory(
     data = await overpassQuery(q, signal)
   } catch (e) {
     if ((e as any)?.name === 'AbortError') throw e
-    return []
+    return { pois: [], needsImage: [] }
   }
   const seen = new Set<string>()
   const out: Poi[] = []
+  const needsImage: string[] = []
+
   for (const el of data.elements as any[]) {
     const plat = el.lat ?? el.center?.lat
     const plng = el.lon ?? el.center?.lon
@@ -262,7 +302,7 @@ export async function nearbyByCategory(
     if (tags.image && /^https?:\/\//.test(tags.image)) imageUrl = tags.image
     else if (tags.wikimedia_commons) imageUrl = wikimediaThumb(tags.wikimedia_commons)
 
-    out.push({
+    const poi: Poi = {
       id: `${el.type}-${el.id}`,
       osmId: `${el.type}/${el.id}`,
       name: tags.name,
@@ -275,10 +315,13 @@ export async function nearbyByCategory(
       phone: tags.phone || tags['contact:phone'] || undefined,
       website: tags.website || tags['contact:website'] || undefined,
       wheelchairDescription: tags['wheelchair:description'] || undefined,
-      ...deriveAccess(tags),
-    })
+      ...deriveAccess(tags, category),
+    }
+    out.push(poi)
+    if (!imageUrl) needsImage.push(tags.name)
   }
-  return out
+
+  return { pois: out, needsImage }
 }
 
 export function haversineKm(a: [number, number], b: [number, number]): number {
