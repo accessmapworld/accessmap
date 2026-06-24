@@ -195,28 +195,32 @@ export default function PlaceDetail() {
 
       {/* ── Header (no photo fallback) ──────────────────────────── */}
       {!heroPhoto && (
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-          <div className="flex items-start gap-4">
-            <span
-              className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl text-white shadow-lift"
-              style={{ background: avgColor }}
-            >
-              <span className="text-2xl font-bold leading-none">{avg != null ? avg.toFixed(1) : '?'}</span>
-              <span className="text-[10px] font-medium uppercase tracking-wide opacity-90">/ 10</span>
-            </span>
-            <div>
-              <h1 className="text-2xl font-bold">{place.name}</h1>
-              <p className="mt-1 flex items-center gap-1.5 text-muted text-sm">
-                <MapPinIcon size={13} /> {place.address}
-              </p>
+        <div className="mb-6 rounded-2xl bg-gradient-to-br from-[#f8f9fa] to-white border border-[#e8eaed] p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-4 min-w-0">
+              <span
+                className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl text-white shadow-lg"
+                style={{ background: avgColor }}
+              >
+                <span className="text-2xl font-bold leading-none">{avg != null ? avg.toFixed(1) : '?'}</span>
+                <span className="text-[9px] font-semibold uppercase tracking-wider opacity-90">/ 10</span>
+              </span>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold leading-tight text-[#202124]">{place.name}</h1>
+                {place.address && (
+                  <p className="mt-1 flex items-center gap-1.5 text-[#6b7280] text-sm">
+                    <MapPinIcon size={13} /> {place.address}
+                  </p>
+                )}
+              </div>
             </div>
+            {user && (
+              <button onClick={() => toggleSaved(id)} className="shrink-0 flex items-center gap-1.5 rounded-full border border-[#dadce0] px-3 py-1.5 text-sm text-[#5f6368] hover:bg-[#f8f9fa] transition-colors">
+                <Bookmark size={14} className={saved ? 'fill-primary text-primary' : ''} />
+                {saved ? 'Saved' : 'Save'}
+              </button>
+            )}
           </div>
-          {user && (
-            <button onClick={() => toggleSaved(id)} className="btn-ghost text-sm">
-              <Bookmark size={16} className={saved ? 'fill-primary text-primary' : ''} />
-              {saved ? 'Saved' : 'Save'}
-            </button>
-          )}
         </div>
       )}
 
@@ -280,11 +284,12 @@ export default function PlaceDetail() {
             <div className="flex-1">
               <p className="font-semibold text-ink text-lg">{osmData.accessLabel}</p>
               <p className="text-sm text-muted mt-0.5">{bd?.baseReason}</p>
-              {bd?.confidence === 'low' || bd?.confidence === 'none' ? (
-                <p className="mt-1 text-xs text-[#f29900]">⚠ Estimated from surface — not OSM-confirmed</p>
-              ) : (
-                <p className="mt-1 text-xs text-muted">Source: OpenStreetMap community data</p>
-              )}
+              <p className="mt-1 text-xs text-muted flex items-center gap-1">
+                {bd?.confidence === 'low' || bd?.confidence === 'none'
+                  ? <><span className="text-[#f29900]">●</span> Estimated — limited mapping data</>
+                  : <><span className="text-[#1e8e3e]">●</span> Verified OpenStreetMap data</>
+                }
+              </p>
             </div>
           </div>
 
@@ -424,7 +429,7 @@ export default function PlaceDetail() {
 
         return (
           <section className="mb-6">
-            <h2 className="label mb-3">Physical access features</h2>
+            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-[#9aa0a6]">Physical access features</h2>
             {features.length > 0
               ? <div className="flex flex-wrap gap-2">{features}</div>
               : <p className="text-sm text-muted">No detailed physical access data recorded in OpenStreetMap yet.</p>

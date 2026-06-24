@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
   MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
-  Navigation2, ChevronRight, Car, ArrowUpDown, Zap, Clock, Info, CheckCircle2,
+  Navigation2, ChevronRight, ChevronDown, Car, ArrowUpDown, Zap, Clock, Info, CheckCircle2,
   Eye, Ear, Brain,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
@@ -74,6 +74,15 @@ export default function MapPage() {
   const [locToast, setLocToast] = useState<{ msg: string; type: 'info' | 'error' } | null>(null)
   const needsProfile = useStore((s) => s.needsProfile)
   const profileActive = hasProfile(needsProfile)
+  const [expandedBreakdowns, setExpandedBreakdowns] = useState<Set<string>>(new Set())
+  function toggleBreakdown(id: string) {
+    setExpandedBreakdowns(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
+  }
+
   const [showIntro, setShowIntro] = useState(() => {
     try { return sessionStorage.getItem('am.introSeen') !== '1' } catch { return true }
   })
@@ -650,25 +659,29 @@ export default function MapPage() {
                         </div>
                       )}
 
-                      {/* Score breakdown — compact single line */}
+                      {/* Score breakdown — collapsed by default, toggle per card */}
                       {bd.base !== null && (
-                        <div className="mt-2 rounded-lg bg-[#f8f9fa] px-3 py-2 text-[11px] leading-relaxed text-[#5f6368]">
-                          <span className="font-semibold text-[#202124]">Base {bd.base}/10</span>
-                          {' — '}{bd.baseReason}
-                          {bd.bonuses.length > 0 && (
-                            <span className="text-[#1e8e3e]">
-                              {' · '}
-                              {bd.bonuses.map(b => `+${b.points} ${b.label.replace(' ✓', '')}`).join(' · ')}
-                            </span>
-                          )}
-                          {bd.penalties.length > 0 && (
-                            <span className="text-[#c5221f]">
-                              {' · '}
-                              {bd.penalties.map(b => `${b.points} ${b.label.replace(' ⚠', '')}`).join(' · ')}
-                            </span>
-                          )}
-                          {(bd.confidence === 'low' || bd.confidence === 'none') && (
-                            <span className="ml-1 text-[#9aa0a6]">· estimated</span>
+                        <div className="mt-2">
+                          <button
+                            onClick={() => toggleBreakdown(p.id)}
+                            className="flex items-center gap-1 text-[11px] text-[#9aa0a6] hover:text-primary transition-colors"
+                          >
+                            <ChevronDown size={12} className={`transition-transform ${expandedBreakdowns.has(p.id) ? 'rotate-180' : ''}`} />
+                            {expandedBreakdowns.has(p.id) ? 'Hide' : 'Score breakdown'}
+                          </button>
+                          {expandedBreakdowns.has(p.id) && (
+                            <div className="mt-1.5 rounded-xl bg-[#f8f9fa] px-3 py-2.5 text-[11px] leading-relaxed text-[#5f6368] space-y-0.5">
+                              <div><span className="font-semibold text-[#202124]">Base {bd.base}/10</span> — {bd.baseReason}</div>
+                              {bd.bonuses.map(b => (
+                                <div key={b.label} className="text-[#1a7337]">+{b.points} {b.label.replace(' ✓', '')}</div>
+                              ))}
+                              {bd.penalties.map(b => (
+                                <div key={b.label} className="text-[#b31412]">{b.points} {b.label.replace(' ⚠', '')}</div>
+                              ))}
+                              {(bd.confidence === 'low' || bd.confidence === 'none') && (
+                                <div className="text-[#9aa0a6] italic">Estimated — limited OSM data</div>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}

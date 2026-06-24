@@ -102,8 +102,8 @@ html.a11y-reduce-motion *::after {
 
 @layer components {
   .card {
-    @apply rounded-2xl border border-border bg-card;
-    box-shadow: 0 1px 2px rgba(60, 64, 67, 0.15), 0 2px 8px rgba(60, 64, 67, 0.08);
+    @apply rounded-2xl border border-[#e8eaed] bg-white;
+    box-shadow: 0 1px 3px rgba(60,64,67,0.08), 0 4px 16px rgba(60,64,67,0.06);
   }
   .input {
     @apply w-full rounded-xl border border-border bg-card px-4 py-2.5 text-ink
@@ -139,14 +139,26 @@ html.a11y-reduce-motion *::after {
     @apply border-primary bg-primary text-white hover:bg-primary;
   }
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full border border-[#dadce0] bg-white px-2 py-0.5 text-[11px] text-[#5f6368];
+    @apply inline-flex items-center gap-1 rounded-full border border-[#dadce0] bg-white px-2.5 py-1 text-[11px] font-medium text-[#5f6368];
   }
   .badge-green {
-    @apply inline-flex items-center gap-1 rounded-full border border-[#1e8e3e]/25 bg-[#e6f4ea] px-2 py-0.5 text-[11px] text-[#1e8e3e];
+    @apply inline-flex items-center gap-1 rounded-full border border-[#1e8e3e]/20 bg-[#e6f4ea] px-2.5 py-1 text-[11px] font-medium text-[#1a7337];
   }
   .badge-red {
-    @apply inline-flex items-center gap-1 rounded-full border border-[#c5221f]/25 bg-[#fce8e6] px-2 py-0.5 text-[11px] text-[#c5221f];
+    @apply inline-flex items-center gap-1 rounded-full border border-[#c5221f]/20 bg-[#fce8e6] px-2.5 py-1 text-[11px] font-medium text-[#b31412];
   }
+}
+
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pinDrop {
+  from { opacity: 0; transform: translateY(-12px) scale(0.85); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-page-in {
+  animation: pageIn 280ms ease-out both;
 }
 
 /* ─── Reduced motion (always respect the OS setting) ─────────────── */
