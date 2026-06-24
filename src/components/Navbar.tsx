@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Map as MapIcon, Accessibility, UserCog } from 'lucide-react'
+import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Map as MapIcon, Accessibility, UserCog, LogIn } from 'lucide-react'
 import MapPin from './MapPin'
 import { useStore } from '../store/useStore'
 import { hasProfile } from '../lib/compatibility'
 import NeedsSetup from './NeedsSetup'
+import AuthModal from './AuthModal'
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-colors duration-150 ${
@@ -17,6 +18,7 @@ export default function Navbar() {
   const toggleEasyMode = useStore((s) => s.toggleEasyMode)
   const needsProfile = useStore((s) => s.needsProfile)
   const [showNeeds, setShowNeeds] = useState(false)
+  const [showAuth, setShowAuth] = useState(false)
   const profileSet = hasProfile(needsProfile)
 
   const links = [
@@ -80,15 +82,26 @@ export default function Navbar() {
               <span className="hidden sm:inline">{easyMode ? 'A11y On' : 'A11y'}</span>
             </button>
 
-            <NavLink to="/profile" className="ml-2" aria-label="Your profile">
-              {user?.photoURL ? (
-                <img src={user.photoURL} alt={user.displayName} className="h-8 w-8 rounded-full border-2 border-[#e8eaed]" />
-              ) : (
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#dadce0] bg-[#f8f9fa] text-[#5f6368] hover:bg-[#f1f3f4]">
-                  <User size={16} />
-                </span>
-              )}
-            </NavLink>
+            {user ? (
+              <NavLink to="/profile" className="ml-2" aria-label={`Your profile — ${user.displayName}`}>
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="" className="h-8 w-8 rounded-full border-2 border-[#e8eaed]" />
+                ) : (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#dadce0] bg-[#f8f9fa] text-[#5f6368] hover:bg-[#f1f3f4]">
+                    <User size={16} aria-hidden="true" />
+                  </span>
+                )}
+              </NavLink>
+            ) : (
+              <button
+                onClick={() => setShowAuth(true)}
+                className="ml-2 flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-[13px] font-medium text-primary hover:bg-primary/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Sign in"
+              >
+                <LogIn size={14} aria-hidden="true" />
+                <span className="hidden sm:inline">Sign in</span>
+              </button>
+            )}
           </div>
         </nav>
 
@@ -100,6 +113,7 @@ export default function Navbar() {
       </header>
 
       {showNeeds && <NeedsSetup onClose={() => setShowNeeds(false)} />}
+      <AuthModal open={showAuth} onClose={() => setShowAuth(false)} />
     </>
   )
 }

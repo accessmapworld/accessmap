@@ -1,23 +1,16 @@
 import { useEffect, useState } from 'react'
-import { LogIn, LogOut, Crown } from 'lucide-react'
+import { LogOut, Crown } from 'lucide-react'
 import Layout from '../components/Layout'
 import PlaceCard from '../components/PlaceCard'
+import AuthModal from '../components/AuthModal'
 import { useStore } from '../store/useStore'
 import { getPlaces, getReviews, getAlerts } from '../lib/data'
-import { FIREBASE_ENABLED } from '../lib/firebase'
 import type { Place, Review, Alert } from '../types'
 
 export default function Profile() {
   const user = useStore((s) => s.user)
-  const signInGoogle = useStore((s) => s.signInGoogle)
-  const signInEmail = useStore((s) => s.signInEmail)
   const logout = useStore((s) => s.logout)
-
-  const [email, setEmail] = useState('')
-  const [pw, setPw] = useState('')
-  const [name, setName] = useState('')
-  const [register, setRegister] = useState(false)
-  const [err, setErr] = useState('')
+  const [showAuth, setShowAuth] = useState(false)
 
   const [places, setPlaces] = useState<Place[]>([])
   const [myReviews, setMyReviews] = useState<Review[]>([])
@@ -34,39 +27,26 @@ export default function Profile() {
     })
   }, [user])
 
-  async function submit() {
-    setErr('')
-    try { await signInEmail(email, pw, name, register) }
-    catch (e: any) { setErr(e.message ?? 'Sign-in failed') }
-  }
-
   if (!user) {
     return (
       <Layout>
-        <div className="mx-auto max-w-sm">
-          <h1 className="font-display text-3xl">Sign in</h1>
-          {!FIREBASE_ENABLED && (
-            <p className="mt-2 text-sm text-muted">Demo mode: any credentials sign you in locally.</p>
-          )}
-          <button onClick={signInGoogle} className="btn-ghost mt-6 w-full">
-            <LogIn size={16} /> Continue with Google
+        <div className="mx-auto max-w-sm py-12 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#f8f9fa] border border-border">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+              <circle cx="16" cy="10" r="5" fill="#dadce0"/>
+              <path d="M4 26c0-6.627 5.373-12 12-12s12 5.373 12 12" fill="#dadce0"/>
+            </svg>
+          </div>
+          <h1 className="text-2xl font-semibold text-ink">Sign in to AccessMap</h1>
+          <p className="mt-2 text-muted text-sm">Save places, write reviews, and track your contributions.</p>
+          <button
+            onClick={() => setShowAuth(true)}
+            className="btn-primary mt-6 px-7 py-3 text-base"
+          >
+            Sign in
           </button>
-          <div className="my-5 flex items-center gap-3 text-muted">
-            <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
-          </div>
-          <div className="space-y-3">
-            {register && (
-              <input className="input" placeholder="Display name" value={name} onChange={(e) => setName(e.target.value)} />
-            )}
-            <input className="input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input className="input" type="password" placeholder="Password" value={pw} onChange={(e) => setPw(e.target.value)} />
-            {err && <p className="text-sm text-alert">{err}</p>}
-            <button onClick={submit} className="btn-primary w-full">{register ? 'Create account' : 'Sign in'}</button>
-            <button onClick={() => setRegister((r) => !r)} className="w-full text-sm text-muted hover:text-ink">
-              {register ? 'Have an account? Sign in' : 'New here? Create an account'}
-            </button>
-          </div>
         </div>
+        <AuthModal open={showAuth} onClose={() => setShowAuth(false)} />
       </Layout>
     )
   }
