@@ -83,11 +83,11 @@ export type FilterKey =
   | 'hearingloop'
 
 export interface NeedsProfile {
+  name: string
   mobility: 'none' | 'cane' | 'manual_wheelchair' | 'power_wheelchair' | 'scooter'
   hearing: 'none' | 'hard_of_hearing' | 'deaf'
   vision: 'none' | 'low_vision' | 'blind'
   sensory: 'none' | 'sensitive' | 'severe'
-  // specific feature needs
   needsLift: boolean
   needsAccessibleToilet: boolean
   needsHearingLoop: boolean

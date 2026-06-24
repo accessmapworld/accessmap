@@ -78,7 +78,11 @@ export default function Navbar() {
               }`}
             >
               <UserCog size={16} aria-hidden="true" />
-              <span className="hidden sm:inline">{profileSet ? 'My Needs ✓' : 'My Needs'}</span>
+              <span className="hidden sm:inline">
+                {profileSet
+                  ? (needsProfile.name ? `${needsProfile.name.split(' ')[0]}'s needs ✓` : 'My Needs ✓')
+                  : 'My Needs'}
+              </span>
             </button>
 
             {/* Accessibility Mode toggle */}

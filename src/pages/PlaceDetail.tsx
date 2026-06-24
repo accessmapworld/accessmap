@@ -10,7 +10,7 @@ import ReportForm from '../components/ReportForm'
 import ReviewForm from '../components/ReviewForm'
 import { getPlace, getReviews, getAlerts, resolveAlert } from '../lib/data'
 import { useStore } from '../store/useStore'
-import { scorePlace, hasProfile } from '../lib/compatibility'
+import { scorePlace, hasProfile, beforeYouGo } from '../lib/compatibility'
 import MatchBadge from '../components/MatchBadge'
 import type { Place, Review, Alert } from '../types'
 
@@ -104,10 +104,18 @@ export default function PlaceDetail() {
       {/* Personal match card — shown only when profile is set */}
       {hasProfile(needsProfile) && (() => {
         const match = scorePlace(place, needsProfile)
+        const briefing = beforeYouGo(place, needsProfile)
+        const firstName = needsProfile.name ? needsProfile.name.split(' ')[0] : null
         return (
-          <section className="mt-6" aria-label="Your personal accessibility match">
-            <h2 className="label mb-3">Your personal match</h2>
+          <section className="mt-6 space-y-3" aria-label="Your personal accessibility match">
+            <h2 className="label">{firstName ? `${firstName}'s match` : 'Your match'}</h2>
             <MatchBadge result={match} size="md" />
+            {briefing && (
+              <div className="rounded-xl border border-border bg-bg p-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Before you go</p>
+                <p className="text-sm leading-relaxed text-ink">{briefing}</p>
+              </div>
+            )}
           </section>
         )
       })()}

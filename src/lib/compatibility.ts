@@ -3,6 +3,7 @@ import type { NeedsProfile, CompatibilityResult } from '../types'
 import type { Poi } from './overpass'
 
 export const DEFAULT_PROFILE: NeedsProfile = {
+  name: '',
   mobility: 'none',
   hearing: 'none',
   vision: 'none',
@@ -12,6 +13,76 @@ export const DEFAULT_PROFILE: NeedsProfile = {
   needsHearingLoop: false,
   needsTactile: false,
   needsQuietSpace: false,
+}
+
+/** Generate a natural-language "Before You Go" briefing for a specific place + profile */
+export function beforeYouGo(place: Place, profile: NeedsProfile): string {
+  const name = profile.name ? profile.name.split(' ')[0] : null
+  const greeting = name ? `${name}, ` : ''
+  const result = scorePlace(place, profile)
+  const lines: string[] = []
+
+  if (profile.mobility !== 'none') {
+    const mob = place.scores.mobility
+    const aid = { cane: 'a walking aid', manual_wheelchair: 'a manual wheelchair', power_wheelchair: 'a power wheelchair', scooter: 'a mobility scooter' }[profile.mobility]
+    if (mob >= 8) lines.push(`This venue has strong wheelchair access, which should work well with ${aid}.`)
+    else if (mob >= 5) lines.push(`Wheelchair access here is moderate — some areas may be easier than others for ${aid} users.`)
+    else lines.push(`Community reports suggest limited wheelchair access. If you use ${aid}, call ahead to check before visiting.`)
+    if (place.terrainRating && place.terrainRating >= 4 && (profile.mobility === 'power_wheelchair' || profile.mobility === 'scooter')) {
+      lines.push(`The terrain is rated rough or steep, which can be challenging for powered mobility aids.`)
+    }
+  }
+
+  if (profile.hearing === 'deaf' || profile.hearing === 'hard_of_hearing') {
+    const h = place.scores.hearing
+    const features = (place.features ?? []).map(f => f.toLowerCase())
+    const hasLoop = features.some(f => f.includes('hearing loop') || f.includes('induction loop'))
+    if (hasLoop) lines.push(`A hearing loop has been confirmed at this location.`)
+    else if (h >= 7) lines.push(`Good hearing accessibility is reported, though a hearing loop hasn't been confirmed — worth checking in advance.`)
+    else lines.push(`Hearing accessibility isn't well documented here. If you rely on a hearing loop or visual alerts, contact the venue first.`)
+  }
+
+  if (profile.vision === 'blind' || profile.vision === 'low_vision') {
+    const v = place.scores.vision
+    const features = (place.features ?? []).map(f => f.toLowerCase())
+    const hasTactile = features.some(f => f.includes('tactile') || f.includes('braille'))
+    if (hasTactile) lines.push(`Tactile paving or Braille signage has been reported at this venue.`)
+    else if (v >= 7) lines.push(`Visual wayfinding is generally rated well by the community.`)
+    else lines.push(`Visual accessibility details are limited for this venue. Ask staff about wayfinding assistance on arrival.`)
+  }
+
+  if (profile.sensory !== 'none') {
+    const s = place.scores.sensory
+    if (s >= 8) lines.push(`This is rated as a calm, low-stimulation space — a good choice for sensory needs.`)
+    else if (s <= 4) lines.push(`This venue can be noisy or busy. If you have sensory sensitivities, try off-peak hours.`)
+    else lines.push(`Sensory conditions are mixed here. Quieter times of day may make a significant difference.`)
+  }
+
+  if (lines.length === 0) return ''
+
+  const intro = result.grade === 'great'
+    ? `${greeting}this place looks like a strong match for your needs.`
+    : result.grade === 'good'
+    ? `${greeting}this place should work reasonably well for you, with a few things to note.`
+    : result.grade === 'limited'
+    ? `${greeting}this place has some limitations for your specific needs.`
+    : `${greeting}based on community reports, this place may not work well for your needs.`
+
+  return [intro.charAt(0).toUpperCase() + intro.slice(1), ...lines].join(' ')
+}
+
+/** Human-readable label for a mobility option */
+export function mobilityLabel(m: NeedsProfile['mobility']): string {
+  return { none: 'Walking', cane: 'Walking aid', manual_wheelchair: 'Manual wheelchair', power_wheelchair: 'Power wheelchair', scooter: 'Mobility scooter' }[m]
+}
+export function hearingLabel(h: NeedsProfile['hearing']): string {
+  return { none: 'Full hearing', hard_of_hearing: 'Hard of hearing', deaf: 'Deaf' }[h]
+}
+export function visionLabel(v: NeedsProfile['vision']): string {
+  return { none: 'Full vision', low_vision: 'Low vision', blind: 'Blind' }[v]
+}
+export function sensoryLabel(s: NeedsProfile['sensory']): string {
+  return { none: 'No sensory needs', sensitive: 'Sensory sensitive', severe: 'Significant sensory needs' }[s]
 }
 
 export function hasProfile(p: NeedsProfile): boolean {

@@ -9,6 +9,8 @@ import { getPlaces, getAlerts } from '../lib/data'
 import { searchPlaces, type GeoResult } from '../lib/nominatim'
 import { CATEGORIES, categoryColor, nearbyByCategory, haversineKm, type Poi, type CategoryKey } from '../lib/overpass'
 import { googleMapsTo } from '../lib/maps'
+import { scorePlace, hasProfile } from '../lib/compatibility'
+import { useStore } from '../store/useStore'
 import type { Place, Alert } from '../types'
 
 export default function MapPage() {
@@ -27,7 +29,10 @@ export default function MapPage() {
   const [loadingPois, setLoadingPois] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
   const [showA11y, setShowA11y] = useState(true)
+  const [forMeOnly, setForMeOnly] = useState(false)
   const [geoError, setGeoError] = useState('')
+  const needsProfile = useStore((s) => s.needsProfile)
+  const profileActive = hasProfile(needsProfile)
   const [showIntro, setShowIntro] = useState(() => { return false; // landing page handles intro
     try { return sessionStorage.getItem('am.introSeen') !== '1' } catch { return true }
   })
@@ -155,7 +160,11 @@ export default function MapPage() {
   }
 
   const alertIds = useMemo(() => new Set(alerts.map((a) => a.placeId)), [alerts])
-  const visiblePlaces = showA11y ? places : []
+  const visiblePlaces = useMemo(() => {
+    if (!showA11y) return []
+    if (forMeOnly && profileActive) return places.filter(p => scorePlace(p, needsProfile).score >= 60)
+    return places
+  }, [showA11y, forMeOnly, places, needsProfile, profileActive])
 
   const sortedPois = useMemo(() => {
     const dist = (p: Poi) => (center ? haversineKm(center, [p.lat, p.lng]) : 0)
@@ -237,6 +246,16 @@ export default function MapPage() {
           <button onClick={() => setShowA11y((s) => !s)} className={`chip ${showA11y ? 'chip-active' : ''}`}>
             <Accessibility size={16} /> Accessible
           </button>
+          {profileActive && (
+            <button
+              onClick={() => setForMeOnly((s) => !s)}
+              className={`chip ${forMeOnly ? 'chip-active' : 'border-primary/40 text-primary'}`}
+              aria-pressed={forMeOnly}
+              title={forMeOnly ? 'Showing places that match your needs' : 'Filter to places that match your needs'}
+            >
+              ✦ {needsProfile.name ? `${needsProfile.name.split(' ')[0]}'s places` : 'For Me'}
+            </button>
+          )}
           {CATEGORIES.map(({ key, label, icon: Icon }) => (
             <button key={key} onClick={() => runCategory(key)} className={`chip ${activeCat === key ? 'chip-active' : ''}`}>
               <Icon size={16} /> {label}
