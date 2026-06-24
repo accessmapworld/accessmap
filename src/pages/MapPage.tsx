@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Loader2, X, LocateFixed, Accessibility, ExternalLink, MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet } from 'lucide-react'
+import {
+  Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
+  MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
+  Navigation2, ChevronRight,
+} from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BrandPin from '../components/MapPin'
 import MapView from '../components/MapView'
@@ -19,6 +23,7 @@ export default function MapPage() {
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null)
   const [center, setCenter] = useState<[number, number] | null>(null)
   const [focus, setFocus] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
+  const [locating, setLocating] = useState(false)
 
   const [q, setQ] = useState('')
   const [results, setResults] = useState<GeoResult[]>([])
@@ -30,12 +35,14 @@ export default function MapPage() {
   const [panelOpen, setPanelOpen] = useState(false)
   const [showA11y, setShowA11y] = useState(true)
   const [forMeOnly, setForMeOnly] = useState(false)
-  const [geoError, setGeoError] = useState('')
+  // null = no message; string = show toast
+  const [locToast, setLocToast] = useState<{ msg: string; type: 'info' | 'error' } | null>(null)
   const needsProfile = useStore((s) => s.needsProfile)
   const profileActive = hasProfile(needsProfile)
-  const [showIntro, setShowIntro] = useState(() => { return false; // landing page handles intro
+  const [showIntro, setShowIntro] = useState(() => {
     try { return sessionStorage.getItem('am.introSeen') !== '1' } catch { return true }
   })
+
   function dismissIntro() {
     setShowIntro(false)
     try { sessionStorage.setItem('am.introSeen', '1') } catch { /* */ }
@@ -43,78 +50,136 @@ export default function MapPage() {
 
   const abortRef = useRef<AbortController | null>(null)
   const poiAbort = useRef<AbortController | null>(null)
+  const watchRef = useRef<number | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     getPlaces().then(setPlaces)
     getAlerts().then(setAlerts)
-    locate(false)
+    // Silent startup — never show errors, just try to centre map
+    locateSilent()
   }, [])
 
-  const watchRef = useRef<number | null>(null)
+  useEffect(() => () => {
+    if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
+  }, [])
 
-  // Approximate coords from IP (works without permission). Returns null on failure.
+  function showToast(msg: string, type: 'info' | 'error' = 'info') {
+    setLocToast({ msg, type })
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setLocToast(null), 6000)
+  }
+
+  // IP fallback — try two services so one outage doesn't break everything
   async function ipCoords(): Promise<[number, number] | null> {
-    try {
-      const res = await fetch('https://get.geojs.io/v1/ip/geo.json')
-      const d = await res.json()
-      const lat = parseFloat(d.latitude)
-      const lng = parseFloat(d.longitude)
-      if (!Number.isNaN(lat) && !Number.isNaN(lng)) return [lat, lng]
-    } catch { /* ignore */ }
+    const services = [
+      async () => {
+        const d = await fetch('https://get.geojs.io/v1/ip/geo.json').then(r => r.json())
+        const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude)
+        if (!isNaN(lat) && !isNaN(lng)) return [lat, lng] as [number, number]
+        return null
+      },
+      async () => {
+        const d = await fetch('https://ipapi.co/json/').then(r => r.json())
+        if (d.latitude && d.longitude) return [d.latitude, d.longitude] as [number, number]
+        return null
+      },
+    ]
+    for (const fn of services) {
+      try { const c = await fn(); if (c) return c } catch { /* try next */ }
+    }
     return null
   }
 
-  /**
-   * Resolve the user's location (live GPS when allowed, IP fallback otherwise),
-   * update the map, and run `onDone` with the coordinates once available.
-   */
-  function locate(announce = true, onDone?: (c: [number, number]) => void) {
-    setGeoError('')
-    const finish = (lat: number, lng: number, precise: boolean) => {
-      if (precise) setUserLoc({ lat, lng })
-      setCenter([lat, lng])
-      setFocus({ lat, lng, zoom: precise ? 15 : 12 })
-      onDone?.([lat, lng])
-    }
-    const secure = typeof window !== 'undefined' && window.isSecureContext
-    if (secure && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          finish(pos.coords.latitude, pos.coords.longitude, true)
-          // keep the blue dot live as the user moves
-          if (watchRef.current == null) {
-            watchRef.current = navigator.geolocation.watchPosition(
-              (p) => setUserLoc({ lat: p.coords.latitude, lng: p.coords.longitude }),
-              () => {},
-              { enableHighAccuracy: true, maximumAge: 10000 },
-            )
-          }
-        },
-        async (err) => {
-          const c = await ipCoords()
-          if (c) {
-            finish(c[0], c[1], false)
-            if (announce) setGeoError('Showing approximate area — tap the locate button and allow location for precise GPS.')
-          } else if (announce || err.code !== 1 /* not a permission denial on silent load */) {
-            setGeoError('Could not get your location. Search a place to begin.')
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
-      )
-    } else {
-      ipCoords().then((c) => {
-        if (c) {
-          finish(c[0], c[1], false)
-        } else if (announce) {
-          setGeoError('Could not get your location. Search a place to begin.')
-        }
-      })
-    }
+  function startWatch() {
+    if (watchRef.current != null) return
+    watchRef.current = navigator.geolocation.watchPosition(
+      (p) => setUserLoc({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 10000 },
+    )
   }
 
-  useEffect(() => () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current) }, [])
+  // Silent startup: never show toasts, just do best-effort centering
+  async function locateSilent() {
+    if (!navigator?.geolocation) {
+      const c = await ipCoords()
+      if (c) { setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 12 }) }
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords
+        setUserLoc({ lat, lng })
+        setCenter([lat, lng])
+        setFocus({ lat, lng, zoom: 15 })
+        startWatch()
+      },
+      async () => {
+        // GPS failed silently — try IP, no error shown
+        const c = await ipCoords()
+        if (c) { setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 12 }) }
+        // If both fail, map just stays centered on [0,0] — user can search
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+    )
+  }
 
-  // Nominatim free-text autocomplete
+  // User-triggered location (locate button or intro CTA)
+  function locateExplicit(onDone?: (c: [number, number]) => void) {
+    setLocating(true)
+    setLocToast(null)
+
+    if (!navigator?.geolocation) {
+      ipCoords().then((c) => {
+        setLocating(false)
+        if (c) {
+          setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 12 })
+          showToast('Showing approximate area based on your IP address.', 'info')
+          onDone?.(c)
+        } else {
+          showToast('Location not available — search for a place to get started.', 'error')
+        }
+      })
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords
+        setLocating(false)
+        setUserLoc({ lat, lng })
+        setCenter([lat, lng])
+        setFocus({ lat, lng, zoom: 15 })
+        startWatch()
+        onDone?.([lat, lng])
+      },
+      async (err) => {
+        const c = await ipCoords()
+        setLocating(false)
+        if (c) {
+          setCenter(c); setFocus({ lat: c[0], lng: c[1], zoom: 12 })
+          showToast(
+            err.code === 1
+              ? 'Location permission denied — showing approximate area. Allow location in your browser for precise GPS.'
+              : 'GPS unavailable — showing approximate area based on your IP.',
+            'info',
+          )
+          onDone?.(c)
+        } else {
+          showToast(
+            err.code === 1
+              ? 'Location permission denied. Allow it in your browser settings, or search for a place.'
+              : 'Could not determine your location. Try searching for a place.',
+            'error',
+          )
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    )
+  }
+
+  // Search autocomplete
   useEffect(() => {
     if (q.trim().length < 3) { setResults([]); return }
     const t = setTimeout(async () => {
@@ -128,31 +193,25 @@ export default function MapPage() {
   }, [q])
 
   async function searchCategory(cat: CategoryKey, c: [number, number]) {
-    setActiveCat(cat); setLoadingPois(true); setPanelOpen(true); setPois([]); setGeoError('')
+    setActiveCat(cat); setLoadingPois(true); setPanelOpen(true); setPois([])
     poiAbort.current?.abort()
     const ac = new AbortController(); poiAbort.current = ac
     try {
       let found = await nearbyByCategory(c, cat, 3000, ac.signal)
-      if (found.length === 0) found = await nearbyByCategory(c, cat, 8000, ac.signal) // widen once
+      if (found.length === 0) found = await nearbyByCategory(c, cat, 8000, ac.signal)
       setPois(found)
-      if (found.length === 0) setGeoError('Nothing of this type nearby — drag the map elsewhere and tap again.')
-    } catch {
-      setGeoError('Search timed out — please try again.')
-    } finally {
-      setLoadingPois(false)
-    }
+    } catch { /* aborted or timeout */ }
+    finally { setLoadingPois(false) }
   }
 
   function runCategory(cat: CategoryKey) {
-    if (activeCat === cat) { setActiveCat(null); setPois([]); setPanelOpen(false); setGeoError(''); return }
-    // Prefer the user's live location; fall back to the visible map center.
+    if (activeCat === cat) { setActiveCat(null); setPois([]); setPanelOpen(false); return }
     const c = userLoc ? ([userLoc.lat, userLoc.lng] as [number, number]) : center
     if (c) {
       searchCategory(cat, c)
     } else {
-      // No location yet — request it, then search around wherever we land.
-      setActiveCat(cat); setPanelOpen(true); setLoadingPois(true); setGeoError('Getting your location…')
-      locate(true, (loc) => searchCategory(cat, loc))
+      setActiveCat(cat); setPanelOpen(true); setLoadingPois(true)
+      locateExplicit((loc) => searchCategory(cat, loc))
     }
   }
 
@@ -171,19 +230,20 @@ export default function MapPage() {
 
   const sortedPois = useMemo(() => {
     const dist = (p: Poi) => (center ? haversineKm(center, [p.lat, p.lng]) : 0)
-    // Most accessible first, then nearest.
     return [...pois].sort((a, b) => {
-      const sa = a.accessScore ?? -1
-      const sb = b.accessScore ?? -1
+      const sa = a.accessScore ?? -1, sb = b.accessScore ?? -1
       if (sb !== sa) return sb - sa
       return dist(a) - dist(b)
     })
   }, [pois, center])
 
+  const activeCatMeta = CATEGORIES.find((c) => c.key === activeCat)
+
   return (
-    <div className="relative h-screen overflow-hidden">
+    <div className="relative h-screen overflow-hidden bg-[#e8eaed]">
       <Navbar />
 
+      {/* Map fills everything below nav */}
       <div id="main-content" className="absolute inset-0 pt-16">
         <MapView
           places={visiblePlaces}
@@ -196,211 +256,343 @@ export default function MapPage() {
         />
       </div>
 
-      {/* OpenStreetMap attribution (required for tile usage) */}
+      {/* OSM attribution */}
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
-        className="absolute bottom-1 right-1 z-[700] rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted shadow-sm hover:text-ink">
-        © OpenStreetMap
+        className="absolute bottom-2 right-2 z-[700] rounded-md bg-white/90 px-2 py-0.5 text-[10px] text-[#6b7280] shadow-sm hover:text-[#111827]">
+        © OpenStreetMap contributors
       </a>
 
-      {/* Left column: search (pinned) + chips + results — Google style */}
-      <div role="region" aria-label="Search and filter panel" className="pointer-events-none absolute left-0 top-16 bottom-0 z-[800] flex w-full flex-col gap-3 px-3 pb-3 pt-4 sm:w-[27rem]">
+      {/* ── Left panel ───────────────────────────────────────────── */}
+      <div
+        role="region"
+        aria-label="Search and filter panel"
+        className="pointer-events-none absolute left-0 top-16 bottom-0 z-[800] flex w-full flex-col gap-2.5 px-3 pb-4 pt-3 sm:w-[25rem]"
+      >
+
         {/* Search bar */}
         <div className="pointer-events-auto shrink-0">
-          <div role="search" className="card flex items-center gap-2.5 rounded-full py-1 pl-4 pr-1.5 shadow-map">
-            <Search size={18} className="shrink-0 text-muted" aria-hidden="true" />
+          <div
+            role="search"
+            className="flex items-center gap-2 rounded-2xl bg-white px-3.5 py-1 shadow-[0_2px_12px_rgba(0,0,0,0.15)]"
+          >
+            <Search size={17} className="shrink-0 text-[#9aa0a6]" aria-hidden="true" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search places, addresses, buildings…"
+              placeholder="Search places, buildings, addresses…"
               aria-label="Search for accessible places"
               aria-autocomplete="list"
               aria-controls="search-results"
               aria-expanded={results.length > 0}
-              className="w-full bg-transparent py-2 text-ink outline-none placeholder:text-muted"
+              className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-[#202124] outline-none placeholder:text-[#9aa0a6]"
             />
-            {searching && <Loader2 size={16} className="animate-spin text-primary" aria-label="Searching…" />}
+            {searching && <Loader2 size={15} className="shrink-0 animate-spin text-primary" aria-label="Searching…" />}
             {q && !searching && (
-              <button onClick={() => { setQ(''); setResults([]) }} aria-label="Clear search" className="rounded-full p-1.5 text-muted hover:bg-bg hover:text-ink"><X size={16} aria-hidden="true" /></button>
+              <button
+                onClick={() => { setQ(''); setResults([]) }}
+                aria-label="Clear search"
+                className="shrink-0 rounded-full p-1 text-[#9aa0a6] hover:bg-[#f1f3f4] hover:text-[#202124]"
+              >
+                <X size={15} aria-hidden="true" />
+              </button>
             )}
-            <span className="h-6 w-px bg-border" aria-hidden="true" />
-            <button onClick={() => locate(true)} aria-label="Use my current location"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/10">
-              <LocateFixed size={18} aria-hidden="true" />
+            <div className="h-5 w-px shrink-0 bg-[#dadce0]" aria-hidden="true" />
+            <button
+              onClick={() => locateExplicit()}
+              aria-label="Use my current location"
+              disabled={locating}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+            >
+              {locating
+                ? <Loader2 size={17} className="animate-spin" aria-hidden="true" />
+                : <LocateFixed size={17} aria-hidden="true" />}
             </button>
           </div>
 
+          {/* Search results dropdown */}
           {results.length > 0 && (
-            <div id="search-results" role="listbox" aria-label="Search results" className="card mt-2 max-h-72 overflow-y-auto">
+            <div
+              id="search-results"
+              role="listbox"
+              aria-label="Search results"
+              className="mt-1.5 overflow-hidden rounded-2xl bg-white shadow-[0_4px_20px_rgba(0,0,0,0.14)]"
+            >
               {results.map((r, i) => (
-                <button key={r.osmId + i} role="option" onClick={() => pickResult(r)}
-                  className="block w-full border-b border-border px-4 py-2.5 text-left last:border-0 hover:bg-bg">
-                  <p className="text-sm text-ink">{r.shortName}</p>
-                  <p className="truncate text-xs text-muted">{r.displayName}</p>
+                <button
+                  key={r.osmId + i}
+                  role="option"
+                  onClick={() => pickResult(r)}
+                  className="flex w-full items-center gap-3 border-b border-[#f1f3f4] px-4 py-3 text-left last:border-0 hover:bg-[#f8f9fa]"
+                >
+                  <MapPinIcon size={15} className="shrink-0 text-[#9aa0a6]" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-[#202124]">{r.shortName}</p>
+                    <p className="truncate text-xs text-[#6b7280]">{r.displayName}</p>
+                  </div>
+                  <ChevronRight size={14} className="ml-auto shrink-0 text-[#9aa0a6]" aria-hidden="true" />
                 </button>
               ))}
             </div>
           )}
 
-          {geoError && <p className="mt-2 rounded-lg bg-card px-3 py-1.5 text-xs text-muted shadow-lift">{geoError}</p>}
+          {/* Location toast */}
+          {locToast && (
+            <div
+              role="status"
+              aria-live="polite"
+              className={`mt-2 flex items-start gap-2.5 rounded-xl px-3.5 py-2.5 text-sm shadow-md ${
+                locToast.type === 'error'
+                  ? 'bg-[#fce8e6] text-[#c5221f]'
+                  : 'bg-[#e8f0fe] text-[#1a73e8]'
+              }`}
+            >
+              {locToast.type === 'error'
+                ? <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+                : <Navigation2 size={15} className="mt-0.5 shrink-0" aria-hidden="true" />}
+              <span className="flex-1 leading-snug">{locToast.msg}</span>
+              <button
+                onClick={() => setLocToast(null)}
+                aria-label="Dismiss"
+                className="shrink-0 opacity-60 hover:opacity-100"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Category chips */}
-        <div className="pointer-events-auto flex shrink-0 gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <button onClick={() => setShowA11y((s) => !s)} className={`chip ${showA11y ? 'chip-active' : ''}`}>
-            <Accessibility size={16} /> Accessible
+        {/* Category + filter chips */}
+        <div className="pointer-events-auto flex shrink-0 items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <button
+            onClick={() => setShowA11y((s) => !s)}
+            className={`chip shrink-0 ${showA11y ? 'chip-active' : ''}`}
+            aria-pressed={showA11y}
+          >
+            <Accessibility size={15} aria-hidden="true" /> Accessible
           </button>
           {profileActive && (
             <button
               onClick={() => setForMeOnly((s) => !s)}
-              className={`chip ${forMeOnly ? 'chip-active' : 'border-primary/40 text-primary'}`}
+              className={`chip shrink-0 ${forMeOnly ? 'chip-active' : 'border-primary/40 text-primary'}`}
               aria-pressed={forMeOnly}
-              title={forMeOnly ? 'Showing places that match your needs' : 'Filter to places that match your needs'}
             >
-              ✦ {needsProfile.name ? `${needsProfile.name.split(' ')[0]}'s places` : 'For Me'}
+              ✦ {needsProfile.name ? `${needsProfile.name.split(' ')[0]}'s map` : 'For Me'}
             </button>
           )}
           {CATEGORIES.map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => runCategory(key)} className={`chip ${activeCat === key ? 'chip-active' : ''}`}>
-              <Icon size={16} /> {label}
+            <button
+              key={key}
+              onClick={() => runCategory(key)}
+              className={`chip shrink-0 ${activeCat === key ? 'chip-active' : ''}`}
+              aria-pressed={activeCat === key}
+            >
+              <Icon size={15} aria-hidden="true" /> {label}
             </button>
           ))}
         </div>
 
-        {/* Results list (fills the column below the chips) */}
+        {/* POI results panel */}
         {panelOpen && (
-          <aside className="card pointer-events-auto flex min-h-0 flex-1 animate-page-in flex-col overflow-hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-              <div className="flex items-center gap-3">
-                {activeCat && (() => {
-                  const cat = CATEGORIES.find((c) => c.key === activeCat)!
-                  const Icon = cat.icon
-                  return (
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl text-white" style={{ background: cat.color }}>
-                      <Icon size={20} />
-                    </span>
-                  )
-                })()}
-                <div>
-                  <p className="text-base font-semibold">{CATEGORIES.find((c) => c.key === activeCat)?.label}</p>
-                  <p className="label">{loadingPois ? 'searching nearby…' : `${sortedPois.length} places near you`}</p>
-                </div>
+          <aside className="pointer-events-auto flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white shadow-[0_4px_20px_rgba(0,0,0,0.14)]">
+            {/* Panel header */}
+            <div className="flex items-center gap-3 border-b border-[#f1f3f4] px-4 py-3">
+              {activeCatMeta && (
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
+                  style={{ background: activeCatMeta.color }}
+                >
+                  <activeCatMeta.icon size={19} aria-hidden="true" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-[#202124]">{activeCatMeta?.label}</p>
+                <p className="text-xs text-[#6b7280]">
+                  {loadingPois ? 'Searching nearby…' : `${sortedPois.length} place${sortedPois.length !== 1 ? 's' : ''} found`}
+                </p>
               </div>
-              <button onClick={() => { setPanelOpen(false); setActiveCat(null); setPois([]) }} className="rounded-full p-1.5 text-muted transition-colors hover:bg-bg hover:text-ink"><X size={18} /></button>
+              <button
+                onClick={() => { setPanelOpen(false); setActiveCat(null); setPois([]) }}
+                aria-label="Close panel"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[#6b7280] hover:bg-[#f1f3f4] hover:text-[#202124]"
+              >
+                <X size={17} />
+              </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2 text-[11px] text-muted">
-              <span className="font-medium text-ink">Pins:</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#22c55e]" /> Accessible</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#eab308]" /> Partial</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#FF6B47]" /> Not</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#9aa0a6]" /> Unrated</span>
+            {/* Accessibility legend strip */}
+            <div className="flex items-center gap-3 border-b border-[#f1f3f4] bg-[#f8f9fa] px-4 py-2 text-[11px] text-[#6b7280]">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#22c55e]" aria-hidden="true" /> Accessible</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#eab308]" aria-hidden="true" /> Partial</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#FF6B47]" aria-hidden="true" /> Not rated</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#9aa0a6]" aria-hidden="true" /> Unknown</span>
             </div>
 
-            <div className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
-              {loadingPois && <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>}
+            {/* List */}
+            <div className="min-h-0 flex-1 divide-y divide-[#f1f3f4] overflow-y-auto">
+              {loadingPois && (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-[#6b7280]">
+                  <Loader2 size={24} className="animate-spin text-primary" aria-label="Loading…" />
+                  <p className="text-sm">Finding accessible places…</p>
+                </div>
+              )}
+              {!loadingPois && sortedPois.length === 0 && (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                  <span className="text-3xl" aria-hidden="true">🔍</span>
+                  <p className="text-sm font-medium text-[#202124]">Nothing found nearby</p>
+                  <p className="text-xs text-[#6b7280]">Try moving the map or choosing a different category.</p>
+                </div>
+              )}
               {sortedPois.map((p, i) => {
                 const dist = center ? haversineKm(center, [p.lat, p.lng]) : null
-                const Icon = CATEGORIES.find((c) => c.key === p.category)!.icon
+                const CatIcon = CATEGORIES.find((c) => c.key === p.category)?.icon ?? MapPinIcon
                 return (
-                  <div key={p.id} className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-bg"
-                    style={{ animation: 'pageIn 320ms ease-out both', animationDelay: `${Math.min(i, 12) * 40}ms` }}>
-                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
-                      style={{ background: categoryColor(p.category) }}>
-                      <Icon size={16} />
+                  <div
+                    key={p.id}
+                    className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-[#f8f9fa]"
+                    style={{ animation: 'pageIn 280ms ease-out both', animationDelay: `${Math.min(i, 10) * 35}ms` }}
+                  >
+                    <span
+                      className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white"
+                      style={{ background: categoryColor(p.category) }}
+                      aria-hidden="true"
+                    >
+                      <CatIcon size={16} />
                     </span>
-                    <button onClick={() => setFocus({ lat: p.lat, lng: p.lng, zoom: 17 })} className="min-w-0 flex-1 text-left">
-                      <p className="truncate font-medium text-ink">{p.name}</p>
-                      <p className="truncate text-xs text-muted">
-                        {p.address || CATEGORIES.find((c) => c.key === p.category)?.label}
-                        {dist != null && <span> · {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`}</span>}
+                    <button
+                      onClick={() => setFocus({ lat: p.lat, lng: p.lng, zoom: 17 })}
+                      className="min-w-0 flex-1 text-left"
+                      aria-label={`Focus map on ${p.name}`}
+                    >
+                      <p className="truncate text-sm font-medium text-[#202124]">{p.name}</p>
+                      <p className="truncate text-xs text-[#6b7280]">
+                        {p.address || activeCatMeta?.label}
+                        {dist != null && (
+                          <span className="ml-1 text-[#1a73e8]">
+                            · {dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`}
+                          </span>
+                        )}
                       </p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        {/* accessibility rating */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
                         {p.accessScore != null ? (
-                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
-                            style={{ background: scoreColor(p.accessScore) }}>
-                            <Accessibility size={11} /> {p.accessScore.toFixed(p.accessScore % 1 ? 1 : 0)}/10 · {p.accessLabel}
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
+                            style={{ background: scoreColor(p.accessScore) }}
+                          >
+                            <Accessibility size={10} aria-hidden="true" /> {p.accessScore.toFixed(p.accessScore % 1 ? 1 : 0)}/10 · {p.accessLabel}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-border px-2 py-0.5 text-[11px] font-medium text-muted">
-                            <Accessibility size={11} /> Unrated
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f3f4] px-2 py-0.5 text-[11px] text-[#6b7280]">
+                            <Accessibility size={10} aria-hidden="true" /> Unrated
                           </span>
                         )}
-                        {/* terrain */}
                         {p.terrain !== 'Unknown' && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted">
-                            <Mountain size={11} /> {p.terrain}
+                          <span className="inline-flex items-center gap-1 rounded-full border border-[#dadce0] px-2 py-0.5 text-[11px] text-[#6b7280]">
+                            <Mountain size={10} aria-hidden="true" /> {p.terrain}
                           </span>
                         )}
-                        {/* accessible toilet */}
                         {p.accessibleToilet && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted" title="Accessible toilet">
-                            <Toilet size={11} /> WC
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full border border-[#dadce0] px-2 py-0.5 text-[11px] text-[#6b7280]"
+                            title="Accessible toilet"
+                          >
+                            <Toilet size={10} aria-hidden="true" /> WC
                           </span>
                         )}
                       </div>
                     </button>
-                    <a href={googleMapsTo([p.lat, p.lng])} target="_blank" rel="noreferrer"
-                      title="Directions in Google Maps"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-primary transition-colors hover:bg-primary hover:text-white">
-                      <ExternalLink size={15} />
+                    <a
+                      href={googleMapsTo([p.lat, p.lng])}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open directions in Google Maps"
+                      aria-label={`Get directions to ${p.name}`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#dadce0] text-primary transition-colors hover:bg-primary hover:text-white hover:border-primary"
+                    >
+                      <ExternalLink size={14} aria-hidden="true" />
                     </a>
                   </div>
                 )
               })}
-              {!loadingPois && sortedPois.length === 0 && (
-                <p className="px-4 py-8 text-center text-sm text-muted">Nothing found nearby. Try moving the map or another category.</p>
-              )}
             </div>
           </aside>
         )}
       </div>
 
-      {/* Accessible-place quick legend (bottom-left) */}
+      {/* Bottom legend (desktop only, when no panel open) */}
       {showA11y && !panelOpen && (
-        <div className="absolute bottom-5 left-4 z-[700] hidden items-center gap-3 rounded-full bg-card px-4 py-2 text-xs text-muted shadow-map sm:flex">
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#f5b50a]" /> Sponsored</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-accent" /> Accessible</span>
-          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#f9ab00]" /> Alert</span>
-          <Link to="/business" className="inline-flex items-center gap-1 font-medium text-primary"><MapPinIcon size={12} /> List your business</Link>
+        <div className="absolute bottom-6 left-4 z-[700] hidden items-center gap-3 rounded-full bg-white/95 px-4 py-2 text-xs text-[#6b7280] shadow-[0_2px_8px_rgba(0,0,0,0.12)] sm:flex">
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#f5b50a]" aria-hidden="true" /> Sponsored</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#0ABFBF]" aria-hidden="true" /> Accessible</span>
+          <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-[#f9ab00]" aria-hidden="true" /> Alert</span>
+          <Link to="/business" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+            <MapPinIcon size={12} aria-hidden="true" /> List your business
+          </Link>
         </div>
       )}
-      {/* Welcome / pitch overlay */}
+
+      {/* Welcome overlay */}
       {showIntro && (
-        <div className="fixed inset-0 z-[950] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="card w-full max-w-md animate-page-in p-7 text-center">
-            <div className="mx-auto mb-1 flex justify-center"><BrandPin size={66} /></div>
-            <h2 className="text-2xl font-semibold">Welcome to Access<span className="text-primary">Map</span></h2>
-            <p className="mt-1.5 text-muted">Crowdsourced accessibility intelligence — find places that actually work for you.</p>
-
-            <div className="mt-6 space-y-3.5 text-left">
-              {[
-                { icon: Accessibility, color: '#0ABFBF', title: 'Accessibility scores', body: 'Mobility, sensory, hearing & vision — rated by the community.' },
-                { icon: AlertTriangle, color: '#ea4335', title: 'Live alerts', body: 'Real-time reports like “elevator offline”, verified by AI.' },
-                { icon: RouteIcon, color: '#1a73e8', title: 'Step-free routes', body: 'Plan accessible routes and open them in Google Maps.' },
-              ].map((f, i) => {
-                const Icon = f.icon
-                return (
-                  <div key={i} className="flex items-start gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: f.color }}>
-                      <Icon size={20} />
-                    </span>
-                    <div><p className="font-medium">{f.title}</p><p className="text-sm text-muted">{f.body}</p></div>
-                  </div>
-                )
-              })}
+        <div
+          className="fixed inset-0 z-[950] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="intro-title"
+        >
+          <div className="w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl">
+            {/* Header */}
+            <div className="bg-gradient-to-br from-[#0ABFBF] to-[#1a73e8] px-7 py-7 text-center text-white">
+              <div className="mx-auto mb-3 flex justify-center">
+                <BrandPin size={56} />
+              </div>
+              <h2 id="intro-title" className="text-2xl font-bold">Welcome to AccessMap</h2>
+              <p className="mt-1 text-sm text-white/85">Crowdsourced accessibility intelligence</p>
             </div>
 
-            <div className="mt-7 flex gap-3">
-              <button onClick={() => { dismissIntro(); locate(true) }} className="btn-primary flex-1"><LocateFixed size={16} /> Use my location</button>
-              <button onClick={dismissIntro} className="btn-ghost flex-1">Explore the map</button>
+            <div className="px-6 py-5">
+              <div className="space-y-3">
+                {[
+                  { icon: Accessibility, color: '#0ABFBF', title: 'Accessibility scores', body: 'Mobility, sensory, hearing & vision — rated by the community.' },
+                  { icon: AlertTriangle, color: '#ea4335', title: 'Live alerts', body: 'Real-time reports like "elevator offline", verified by AI.' },
+                  { icon: RouteIcon, color: '#1a73e8', title: 'Step-free routes', body: 'Plan accessible routes and open them in Google Maps.' },
+                ].map((f) => {
+                  const Icon = f.icon
+                  return (
+                    <div key={f.title} className="flex items-start gap-3">
+                      <span
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
+                        style={{ background: f.color }}
+                        aria-hidden="true"
+                      >
+                        <Icon size={18} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-semibold text-[#202124]">{f.title}</p>
+                        <p className="text-xs text-[#6b7280]">{f.body}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="mt-5 flex flex-col gap-2.5">
+                <button
+                  onClick={() => { dismissIntro(); locateExplicit() }}
+                  className="btn-primary w-full"
+                >
+                  <LocateFixed size={16} aria-hidden="true" /> Use my location
+                </button>
+                <button onClick={dismissIntro} className="btn-ghost w-full">
+                  Explore the map
+                </button>
+              </div>
+
+              <p className="mt-4 text-center text-[11px] leading-relaxed text-[#9aa0a6]">
+                By continuing you agree to our{' '}
+                <a href="/terms" className="underline hover:text-primary">Terms</a> &{' '}
+                <a href="/privacy" className="underline hover:text-primary">Privacy Policy</a>.
+                Your location is never stored without consent.
+              </p>
             </div>
-            <p className="mt-4 text-xs text-muted/70 leading-relaxed">
-              By using AccessMap you agree to our{' '}
-              <a href="/terms" className="underline hover:text-primary">Terms of Service</a> and{' '}
-              <a href="/privacy" className="underline hover:text-primary">Privacy Policy</a>.
-              Location data is used only to show your position on the map and is never stored without consent.
-            </p>
           </div>
         </div>
       )}
