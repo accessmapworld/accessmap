@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import type { Place } from '../types'
-import { categoryColor, type Poi } from '../lib/overpass'
+import { type Poi } from '../lib/overpass'
+import { scoreColor } from './ScoreRing'
+
+const accessColor = (p: Poi) => (p.accessScore != null ? scoreColor(p.accessScore) : '#9aa0a6')
 
 interface Props {
   places: Place[]
@@ -93,11 +96,16 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
     if (!layer) return
     layer.clearLayers()
     pois.forEach((p) => {
-      const m = L.marker([p.lat, p.lng], { icon: poiIcon(categoryColor(p.category)) })
+      const c = accessColor(p)
+      const m = L.marker([p.lat, p.lng], { icon: poiIcon(c) })
+      const rating = p.accessScore != null
+        ? `<span style="display:inline-flex;align-items:center;gap:4px;background:${c};color:#fff;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:600">♿ ${p.accessScore}/10 · ${p.accessLabel}</span>`
+        : `<span style="background:#e3e6ea;color:#5f6368;border-radius:999px;padding:2px 8px;font-size:11px">♿ Unrated</span>`
       m.bindPopup(
-        `<div style="min-width:160px">
+        `<div style="min-width:170px">
           <strong style="font-size:14px;color:#202124">${p.name}</strong>
           ${p.address ? `<div style="color:#5f6368;font-size:12px;margin-top:2px">${p.address}</div>` : ''}
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">${rating}${p.terrain !== 'Unknown' ? `<span style="border:1px solid #e3e6ea;color:#5f6368;border-radius:999px;padding:2px 8px;font-size:11px">⛰ ${p.terrain}</span>` : ''}</div>
           <a href="${gmaps(p.lat, p.lng)}" target="_blank" rel="noreferrer"
             style="display:inline-block;margin-top:8px;color:#1a73e8;font-size:13px;font-weight:600">Directions ↗</a>
         </div>`,

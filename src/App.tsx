@@ -10,6 +10,8 @@ import SubmitReview from './pages/SubmitReview'
 import Profile from './pages/Profile'
 import Admin from './pages/Admin'
 import BusinessRegister from './pages/BusinessRegister'
+import Privacy from './pages/Privacy'
+import Terms from './pages/Terms'
 
 export default function App() {
   const initAuth = useStore((s) => s.initAuth)
@@ -24,6 +26,8 @@ export default function App() {
       <Route path="/report" element={<Report />} />
       <Route path="/submit-review" element={<SubmitReview />} />
       <Route path="/business" element={<BusinessRegister />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="/profile" element={<Profile />} />
       <Route path="/admin" element={<Admin />} />
     </Routes>

@@ -202,6 +202,19 @@ export default function Home() {
           <span className="font-semibold text-ink">Access<span className="text-primary">Map</span></span>
         </div>
         <p className="mt-2">Crowdsourced accessibility intelligence · Built for the community</p>
+        <nav className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <Link to="/map" className="hover:text-ink">Map</Link>
+          <Link to="/business" className="hover:text-ink">For Business</Link>
+          <Link to="/privacy" className="hover:text-ink">Privacy</Link>
+          <Link to="/terms" className="hover:text-ink">Terms</Link>
+        </nav>
+        <p className="mt-3 text-xs">
+          Map data ©{' '}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer" className="underline hover:text-ink">
+            OpenStreetMap
+          </a>{' '}
+          contributors
+        </p>
       </footer>
     </Layout>
   )

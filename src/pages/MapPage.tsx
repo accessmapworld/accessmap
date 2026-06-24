@@ -158,8 +158,14 @@ export default function MapPage() {
   const visiblePlaces = showA11y ? places : []
 
   const sortedPois = useMemo(() => {
-    if (!center) return pois
-    return [...pois].sort((a, b) => haversineKm(center, [a.lat, a.lng]) - haversineKm(center, [b.lat, b.lng]))
+    const dist = (p: Poi) => (center ? haversineKm(center, [p.lat, p.lng]) : 0)
+    // Most accessible first, then nearest.
+    return [...pois].sort((a, b) => {
+      const sa = a.accessScore ?? -1
+      const sb = b.accessScore ?? -1
+      if (sb !== sa) return sb - sa
+      return dist(a) - dist(b)
+    })
   }, [pois, center])
 
   return (
@@ -177,6 +183,12 @@ export default function MapPage() {
           onSelect={(p) => setFocus({ lat: p.lat, lng: p.lng, zoom: 16 })}
         />
       </div>
+
+      {/* OpenStreetMap attribution (required for tile usage) */}
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
+        className="absolute bottom-1 right-1 z-[700] rounded bg-card/85 px-1.5 py-0.5 text-[10px] text-muted shadow-sm hover:text-ink">
+        © OpenStreetMap
+      </a>
 
       {/* Left column: search (pinned) + chips + results — Google style */}
       <div className="pointer-events-none absolute left-0 top-16 bottom-0 z-[800] flex w-full flex-col gap-3 px-3 pb-3 pt-4 sm:w-[27rem]">
@@ -248,6 +260,14 @@ export default function MapPage() {
                 </div>
               </div>
               <button onClick={() => { setPanelOpen(false); setActiveCat(null); setPois([]) }} className="rounded-full p-1.5 text-muted transition-colors hover:bg-bg hover:text-ink"><X size={18} /></button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-4 py-2 text-[11px] text-muted">
+              <span className="font-medium text-ink">Pins:</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#22c55e]" /> Accessible</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#eab308]" /> Partial</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#FF6B47]" /> Not</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#9aa0a6]" /> Unrated</span>
             </div>
 
             <div className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
