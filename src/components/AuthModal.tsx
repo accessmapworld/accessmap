@@ -81,7 +81,8 @@ export default function AuthModal({ open, onClose }: Props) {
     try {
       await signInGoogle()
     } catch (e: any) {
-      setError(friendlyError(e?.code))
+      console.error('[AuthModal] Google sign-in error:', e)
+      setError(friendlyError(e?.code, e?.message))
     } finally {
       setLoading(false)
     }
@@ -94,7 +95,8 @@ export default function AuthModal({ open, onClose }: Props) {
     try {
       await signInEmail(email, password, name, mode === 'register')
     } catch (e: any) {
-      setError(friendlyError(e?.code))
+      console.error('[AuthModal] Email sign-in error:', e)
+      setError(friendlyError(e?.code, e?.message))
     } finally {
       setLoading(false)
     }
@@ -244,7 +246,7 @@ export default function AuthModal({ open, onClose }: Props) {
   )
 }
 
-function friendlyError(code?: string): string {
+function friendlyError(code?: string, message?: string): string {
   switch (code) {
     case 'auth/popup-closed-by-user':
     case 'auth/cancelled-popup-request':
@@ -263,7 +265,9 @@ function friendlyError(code?: string): string {
       return 'Too many attempts. Please try again later.'
     case 'auth/network-request-failed':
       return 'Network error. Check your connection and try again.'
+    case 'auth/unauthorized-domain':
+      return 'This domain is not authorised in Firebase. Add it under Authentication → Settings → Authorised domains.'
     default:
-      return 'Something went wrong. Please try again.'
+      return message || 'Something went wrong. Please try again.'
   }
 }
