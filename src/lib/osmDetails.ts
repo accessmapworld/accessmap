@@ -153,7 +153,7 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
   const wSeating = t['capacity:wheelchair'] || t['wheelchair:seating']
   if (wSeating && wSeating !== 'no' && wSeating !== '0')
     extras.push({ label: 'Wheelchair seating', value: /^\d+$/.test(wSeating) ? `${wSeating} spaces` : 'Available' })
-  const minWidth = t['min_width'] || t['corridor:width']
+  const minWidth = t['min_width'] || t['wheelchair:width']
   if (minWidth) extras.push({ label: 'Min. corridor width', value: minWidth })
   if (t['toilets:grab_rail'] || t['grab_rail']) extras.push({ label: 'Grab rails', value: t['toilets:grab_rail'] === 'yes' || t['grab_rail'] === 'yes' ? 'Yes' : 'No' })
   if (t['turning_circle:wheelchair'] || t['turning_space']) extras.push({ label: 'Wheelchair turning space', value: t['turning_circle:wheelchair'] || t['turning_space'] })

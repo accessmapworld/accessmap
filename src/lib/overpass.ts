@@ -128,15 +128,23 @@ const CATEGORY_PRIORS: Partial<Record<CategoryKey, {
   attraction: { unratedBase: 4.5, unratedReason: 'Tourist attraction — modern ones tend to be accessible; older ones vary' },
 }
 
-/** Parse a measurement string like "0.9 m", "90 cm", "90", "0.9" → cm (integer). */
+/**
+ * Parse OSM measurement strings to centimetres.
+ * "0.9 m" → 90, "90 cm" → 90, "90" → 90, "0.9" → 90
+ * Rules:
+ *   - explicit "m" unit (not "cm") → multiply by 100
+ *   - explicit "cm" → use as-is
+ *   - no unit: values < 5 are almost certainly metres → × 100; ≥ 5 are cm
+ */
 function parseCm(raw: string): number | null {
   if (!raw) return null
+  const lower = raw.toLowerCase()
   const v = parseFloat(raw.replace(/[^0-9.]/g, ''))
-  if (isNaN(v)) return null
-  // Treat values ≤ 10 as metres (0.9 m → 90 cm), larger as cm already
-  return raw.toLowerCase().includes('m') && !raw.toLowerCase().includes('cm')
-    ? Math.round(v * 100)
-    : v < 10 ? Math.round(v * 100) : Math.round(v)
+  if (isNaN(v) || v <= 0) return null
+  if (lower.includes('cm')) return Math.round(v)
+  if (lower.includes('m')) return Math.round(v * 100)
+  // No unit — OSM convention: small decimals are metres, integers ≥ 5 are cm
+  return v < 5 ? Math.round(v * 100) : Math.round(v)
 }
 
 export function deriveAccess(tags: Record<string, string>, category?: CategoryKey): Omit<Poi,
@@ -176,7 +184,8 @@ export function deriveAccess(tags: Record<string, string>, category?: CategoryKe
   const doorType = doorRaw === 'yes' || doorRaw === 'button' || doorRaw === 'motion'
     ? 'Automatic'
     : (tags.door === 'hinged' || tags.door === 'manual') ? 'Manual' : undefined
-  const doorWidthRaw = tags['door:width'] || tags['entrance:width'] || tags['width']
+  // Only use specific door-width tags — not the generic 'width' (which is road/path width)
+  const doorWidthRaw = tags['door:width'] || tags['entrance:width']
   const doorWidthCm = doorWidthRaw ? parseCm(doorWidthRaw) : undefined
   const entranceLevel = tags.level || tags['entrance:level'] || undefined
 
@@ -207,7 +216,8 @@ export function deriveAccess(tags: Record<string, string>, category?: CategoryKe
   const changingPlace = (tags['changing_place'] || tags['changing_table:wheelchair'] || '').toLowerCase() === 'yes'
   const assistanceAnimals = (tags['assistance_dog'] || tags['dog'] || '').toLowerCase()
   const allowsAssistanceDogs = assistanceAnimals === 'yes' || assistanceAnimals === 'allowed'
-  const corridorWidthCm = parseCm(tags['min_width'] || tags['width'] || '') || undefined
+  // Only use corridor-specific width tags — not the generic 'width'
+  const corridorWidthCm = parseCm(tags['min_width'] || tags['wheelchair:width'] || '') || undefined
 
   // ── Base ─────────────────────────────────────────────────────────
   let base: number | null = null
