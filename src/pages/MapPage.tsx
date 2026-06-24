@@ -172,7 +172,7 @@ export default function MapPage() {
     <div className="relative h-screen overflow-hidden">
       <Navbar />
 
-      <div className="absolute inset-0 pt-16">
+      <div id="main-content" className="absolute inset-0 pt-16">
         <MapView
           places={visiblePlaces}
           pois={pois}
@@ -191,32 +191,36 @@ export default function MapPage() {
       </a>
 
       {/* Left column: search (pinned) + chips + results — Google style */}
-      <div className="pointer-events-none absolute left-0 top-16 bottom-0 z-[800] flex w-full flex-col gap-3 px-3 pb-3 pt-4 sm:w-[27rem]">
-        {/* Search bar (always visible, stays at top) */}
+      <div role="region" aria-label="Search and filter panel" className="pointer-events-none absolute left-0 top-16 bottom-0 z-[800] flex w-full flex-col gap-3 px-3 pb-3 pt-4 sm:w-[27rem]">
+        {/* Search bar */}
         <div className="pointer-events-auto shrink-0">
-          <div className="card flex items-center gap-2.5 rounded-full py-1 pl-4 pr-1.5 shadow-map">
-            <Search size={18} className="shrink-0 text-muted" />
+          <div role="search" className="card flex items-center gap-2.5 rounded-full py-1 pl-4 pr-1.5 shadow-map">
+            <Search size={18} className="shrink-0 text-muted" aria-hidden="true" />
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search places, addresses, buildings…"
+              aria-label="Search for accessible places"
+              aria-autocomplete="list"
+              aria-controls="search-results"
+              aria-expanded={results.length > 0}
               className="w-full bg-transparent py-2 text-ink outline-none placeholder:text-muted"
             />
-            {searching && <Loader2 size={16} className="animate-spin text-primary" />}
+            {searching && <Loader2 size={16} className="animate-spin text-primary" aria-label="Searching…" />}
             {q && !searching && (
-              <button onClick={() => { setQ(''); setResults([]) }} className="rounded-full p-1.5 text-muted hover:bg-bg hover:text-ink"><X size={16} /></button>
+              <button onClick={() => { setQ(''); setResults([]) }} aria-label="Clear search" className="rounded-full p-1.5 text-muted hover:bg-bg hover:text-ink"><X size={16} aria-hidden="true" /></button>
             )}
-            <span className="h-6 w-px bg-border" />
-            <button onClick={() => locate(true)} title="Use my live location"
+            <span className="h-6 w-px bg-border" aria-hidden="true" />
+            <button onClick={() => locate(true)} aria-label="Use my current location"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/10">
-              <LocateFixed size={18} />
+              <LocateFixed size={18} aria-hidden="true" />
             </button>
           </div>
 
           {results.length > 0 && (
-            <div className="card mt-2 max-h-72 overflow-y-auto">
+            <div id="search-results" role="listbox" aria-label="Search results" className="card mt-2 max-h-72 overflow-y-auto">
               {results.map((r, i) => (
-                <button key={r.osmId + i} onClick={() => pickResult(r)}
+                <button key={r.osmId + i} role="option" onClick={() => pickResult(r)}
                   className="block w-full border-b border-border px-4 py-2.5 text-left last:border-0 hover:bg-bg">
                   <p className="text-sm text-ink">{r.shortName}</p>
                   <p className="truncate text-xs text-muted">{r.displayName}</p>

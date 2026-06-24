@@ -121,3 +121,111 @@ h1, h2, h3 {
     @apply border-primary bg-primary text-white hover:bg-primary;
   }
 }
+
+/* ─── Reduced motion (always respect the OS setting) ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ─── Easy / Accessibility Mode ───────────────────────────────────── */
+html.easy-mode {
+  /* Force reduced motion regardless of OS setting */
+  --am-motion: 0.01ms;
+}
+html.easy-mode *, html.easy-mode *::before, html.easy-mode *::after {
+  animation-duration: var(--am-motion) !important;
+  transition-duration: var(--am-motion) !important;
+}
+
+/* Base scale-up: 18px base instead of 14/15 */
+html.easy-mode body {
+  font-size: 18px;
+  line-height: 1.65;
+}
+
+/* High-contrast colour overrides */
+html.easy-mode {
+  --color-ink: #0a0a0a;
+  --color-muted: #3d3d3d;
+  --color-bg: #ffffff;
+  --color-card: #ffffff;
+  --color-border: #4a4a4a;
+  --color-primary: #005fa3;    /* darker teal/blue for better contrast */
+}
+
+/* Universal focus ring — thick, high-contrast, always visible */
+html.easy-mode :focus-visible {
+  outline: 3px solid #005fa3 !important;
+  outline-offset: 3px !important;
+  border-radius: 4px;
+}
+
+/* Minimum tap target 44×44px on all interactive elements */
+html.easy-mode button,
+html.easy-mode a,
+html.easy-mode [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Larger, bolder text on cards and labels */
+html.easy-mode .card p,
+html.easy-mode .card span,
+html.easy-mode .label {
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+}
+
+/* Stronger border on all cards */
+html.easy-mode .card {
+  border-width: 2px !important;
+  border-color: #4a4a4a !important;
+}
+
+/* Larger input text */
+html.easy-mode input,
+html.easy-mode textarea,
+html.easy-mode select {
+  font-size: 1.1rem !important;
+  padding: 0.75rem 1rem !important;
+  border-width: 2px !important;
+}
+
+/* Pill / chip buttons — larger in easy mode */
+html.easy-mode .chip {
+  font-size: 0.95rem !important;
+  padding: 0.55rem 1rem !important;
+  border-width: 2px !important;
+}
+
+/* Skip-to-content link (hidden by default, shown on focus) */
+.skip-nav {
+  position: absolute;
+  top: -9999px;
+  left: 1rem;
+  z-index: 9999;
+  padding: 0.75rem 1.25rem;
+  background: #005fa3;
+  color: #fff;
+  font-weight: 700;
+  border-radius: 0 0 8px 8px;
+  text-decoration: none;
+}
+.skip-nav:focus {
+  top: 0;
+}
+
+/* Easy-mode map: larger popup text */
+html.easy-mode .leaflet-popup-content {
+  font-size: 16px !important;
+  line-height: 1.6 !important;
+}
+html.easy-mode .leaflet-bar a {
+  width: 44px !important;
+  height: 44px !important;
+  line-height: 44px !important;
+  font-size: 20px !important;
+}

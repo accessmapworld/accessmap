@@ -10,9 +10,11 @@ interface AppState {
   user: AppUser | null
   authReady: boolean
   filters: Set<FilterKey>
+  easyMode: boolean
   toggleFilter: (f: FilterKey) => void
   clearFilters: () => void
   toggleSaved: (placeId: string) => void
+  toggleEasyMode: () => void
   initAuth: () => void
   signInGoogle: () => Promise<void>
   signInEmail: (email: string, pw: string, name?: string, register?: boolean) => Promise<void>
@@ -30,10 +32,27 @@ const MOCK_USER: AppUser = {
   reportCount: 1,
 }
 
+function loadEasyMode(): boolean {
+  try { return localStorage.getItem('am.easyMode') === '1' } catch { return false }
+}
+
+function applyEasyMode(on: boolean) {
+  document.documentElement.classList.toggle('easy-mode', on)
+}
+
 export const useStore = create<AppState>((set, get) => ({
   user: null,
   authReady: false,
   filters: new Set(),
+  easyMode: (() => { const v = loadEasyMode(); applyEasyMode(v); return v })(),
+
+  toggleEasyMode: () =>
+    set((s) => {
+      const next = !s.easyMode
+      applyEasyMode(next)
+      try { localStorage.setItem('am.easyMode', next ? '1' : '0') } catch { /* */ }
+      return { easyMode: next }
+    }),
 
   toggleFilter: (f) =>
     set((s) => {
