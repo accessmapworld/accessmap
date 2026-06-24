@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   MapPin as MapPinIcon, Flag, Star, Route as RouteIcon,
   ShieldCheck, ShieldAlert, Bookmark, ExternalLink, BadgeCheck,
@@ -48,7 +48,9 @@ function FeatureBadge({ icon: Icon, label, positive }: { icon: React.ElementType
 
 export default function PlaceDetail() {
   const { id = '' } = useParams()
+  const [searchParams] = useSearchParams()
   const [place, setPlace] = useState<Place | null>(null)
+  const [osmOnlyMode, setOsmOnlyMode] = useState(false)
   const [reviews, setReviews] = useState<Review[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [specs, setSpecs] = useState<AccessSpecs[]>([])
@@ -65,15 +67,39 @@ export default function PlaceDetail() {
 
   async function load() {
     const p = await getPlace(id)
-    setPlace(p)
-    setReviews(await getReviews(id))
-    setAlerts(await getAlerts(id))
-    setSpecs(await getSpecs(id))
     if (p) {
+      setPlace(p)
+      setOsmOnlyMode(false)
+      setReviews(await getReviews(id))
+      setAlerts(await getAlerts(id))
+      setSpecs(await getSpecs(id))
       setOsmLoading(true)
       fetchOsmDetails(p.lat, p.lng)
         .then(setOsmData)
         .finally(() => setOsmLoading(false))
+    } else {
+      // OSM POI — lat/lng/name passed as query params
+      const lat = parseFloat(searchParams.get('lat') ?? '')
+      const lng = parseFloat(searchParams.get('lng') ?? '')
+      const name = searchParams.get('name') ?? 'Place'
+      if (!isNaN(lat) && !isNaN(lng)) {
+        setOsmOnlyMode(true)
+        // Synthesise a minimal Place so the page renders
+        setPlace({
+          id, name, address: '', lat, lng,
+          scores: { mobility: 0, sensory: 0, hearing: 0, vision: 0 },
+          reviewCount: 0, lastUpdated: 0,
+        })
+        setSpecs(await getSpecs(id))
+        setOsmLoading(true)
+        fetchOsmDetails(lat, lng)
+          .then(d => {
+            setOsmData(d)
+            // Patch name from OSM if available
+            if (d?.name) setPlace(prev => prev ? { ...prev, name: d.name!, address: d.extras.find(e => e.label === 'Address (OSM)')?.value ?? '' } : prev)
+          })
+          .finally(() => setOsmLoading(false))
+      }
     }
   }
   useEffect(() => { load() }, [id])
@@ -85,8 +111,10 @@ export default function PlaceDetail() {
 
   if (!place) return <Layout><p className="text-muted py-10 text-center">Loading…</p></Layout>
 
-  const avg = (place.scores.mobility + place.scores.sensory + place.scores.hearing + place.scores.vision) / 4
-  const avgColor = scoreColor(avg)
+  const avg = osmOnlyMode
+    ? (osmData?.accessScore ?? null)
+    : (place.scores.mobility + place.scores.sensory + place.scores.hearing + place.scores.vision) / 4
+  const avgColor = avg != null ? scoreColor(avg) : '#9aa0a6'
   const communityPhotos = reviews.flatMap((r) => r.photos.map((url) => ({ url, verified: r.verified })))
   const bd = osmData?.breakdown
 
@@ -111,7 +139,7 @@ export default function PlaceDetail() {
                 className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl text-white shadow-lg"
                 style={{ background: avgColor }}
               >
-                <span className="text-xl font-bold leading-none">{avg.toFixed(1)}</span>
+                <span className="text-xl font-bold leading-none">{avg != null ? avg.toFixed(1) : '?'}</span>
                 <span className="text-[9px] font-medium uppercase tracking-wide opacity-90">/ 10</span>
               </span>
               <div className="text-white drop-shadow">
@@ -142,7 +170,7 @@ export default function PlaceDetail() {
               className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl text-white shadow-lift"
               style={{ background: avgColor }}
             >
-              <span className="text-2xl font-bold leading-none">{avg.toFixed(1)}</span>
+              <span className="text-2xl font-bold leading-none">{avg != null ? avg.toFixed(1) : '?'}</span>
               <span className="text-[10px] font-medium uppercase tracking-wide opacity-90">/ 10</span>
             </span>
             <div>
@@ -350,8 +378,8 @@ export default function PlaceDetail() {
         </section>
       )}
 
-      {/* ── Community score rings ───────────────────────────────── */}
-      <section className="card mb-6 p-5">
+      {/* ── Community score rings (hidden for OSM-only POIs with no reviews) ── */}
+      {!osmOnlyMode && <section className="card mb-6 p-5">
         <h2 className="label mb-4">Community accessibility scores</h2>
         <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
           <ScoreRing score={place.scores.mobility} label="Mobility" />
@@ -389,11 +417,11 @@ export default function PlaceDetail() {
             </div>
           </div>
         )}
-      </section>
+      </section>}
 
       {/* ── Actions ─────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-wrap gap-3">
-        <button onClick={() => setShowReview(true)} className="btn-primary"><Star size={16} /> Write a review</button>
+        {!osmOnlyMode && <button onClick={() => setShowReview(true)} className="btn-primary"><Star size={16} /> Write a review</button>}
         <button onClick={() => setShowSpecsForm(true)} className="btn-ghost"><CheckCircle2 size={16} /> Add specs</button>
         <button onClick={() => setShowReport(true)} className="btn-alert"><Flag size={16} /> Report issue</button>
         <Link to="/route" className="btn-ghost"><RouteIcon size={16} /> Route</Link>

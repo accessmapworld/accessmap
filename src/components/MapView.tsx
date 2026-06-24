@@ -45,15 +45,26 @@ const cachedPin = (color: string) => {
 const gmaps = (lat: number, lng: number) =>
   `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=walking`
 
-function popupHtml(name: string, address: string | undefined, scoreHtml: string, terrainHtml: string, lat: number, lng: number) {
-  return `<div style="min-width:190px;font-family:'Inter',system-ui,sans-serif">
+function popupHtml(
+  name: string, address: string | undefined,
+  scoreHtml: string, terrainHtml: string,
+  lat: number, lng: number,
+  detailHref?: string,
+) {
+  return `<div style="min-width:200px;font-family:'Inter',system-ui,sans-serif">
     <p style="margin:0;font-size:14px;font-weight:600;color:#111827;line-height:1.3">${name}</p>
     ${address ? `<p style="margin:4px 0 0;font-size:12px;color:#6b7280">${address}</p>` : ''}
     <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px">${scoreHtml}${terrainHtml}</div>
-    <a href="${gmaps(lat, lng)}" target="_blank" rel="noreferrer"
-      style="display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:5px 12px;background:#0ABFBF;color:#fff;border-radius:999px;font-size:12px;font-weight:600;text-decoration:none">
-      Get directions ↗
-    </a>
+    <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+      ${detailHref ? `<a href="${detailHref}"
+        style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#1a73e8;color:#fff;border-radius:999px;font-size:12px;font-weight:600;text-decoration:none">
+        View details →
+      </a>` : ''}
+      <a href="${gmaps(lat, lng)}" target="_blank" rel="noreferrer"
+        style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;background:#0ABFBF;color:#fff;border-radius:999px;font-size:12px;font-weight:600;text-decoration:none">
+        Directions ↗
+      </a>
+    </div>
   </div>`
 }
 
@@ -105,6 +116,10 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
       const icon = p.sponsored ? SPONSOR_ICON : alertPlaceIds.has(p.id) ? ALERT_ICON : PLACE_ICON
       const m = L.marker([p.lat, p.lng], { icon })
       m.bindTooltip(p.name, { direction: 'top', offset: [0, -30], className: 'am-tooltip' })
+      const avg = (p.scores.mobility + p.scores.sensory + p.scores.hearing + p.scores.vision) / 4
+      const avgColor = avg >= 7 ? '#1e8e3e' : avg >= 5 ? '#f29900' : '#ea4335'
+      const scoreHtml = `<span style="background:${avgColor};color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">♿ ${avg.toFixed(1)}/10</span>`
+      m.bindPopup(popupHtml(p.name, p.address, scoreHtml, '', p.lat, p.lng, `/place/${p.id}`), { maxWidth: 280 })
       m.on('click', () => onSelect?.(p))
       m.addTo(layer)
     })
@@ -123,7 +138,8 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
       const terrainHtml = p.terrain !== 'Unknown'
         ? `<span style="background:#f3f4f6;color:#374151;border-radius:999px;padding:2px 9px;font-size:11px">⛰ ${p.terrain}</span>`
         : ''
-      m.bindPopup(popupHtml(p.name, p.address, scoreHtml, terrainHtml, p.lat, p.lng), { maxWidth: 260 })
+      const poiDetailHref = `/place/${p.id}?lat=${p.lat}&lng=${p.lng}&name=${encodeURIComponent(p.name)}`
+      m.bindPopup(popupHtml(p.name, p.address, scoreHtml, terrainHtml, p.lat, p.lng, poiDetailHref), { maxWidth: 280 })
       m.addTo(layer)
     })
   }, [pois])

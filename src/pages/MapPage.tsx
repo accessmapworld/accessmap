@@ -592,15 +592,23 @@ export default function MapPage() {
                         <p className="mt-1 text-[11px] text-[#6b7280]">Ramp: {p.rampNote}</p>
                       )}
 
-                      {/* OSM link */}
-                      <a
-                        href={`https://www.openstreetmap.org/${p.osmId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-2 inline-flex items-center gap-1 text-[10px] text-[#9aa0a6] hover:text-primary hover:underline"
-                      >
-                        View on OpenStreetMap ↗
-                      </a>
+                      {/* Detail page + OSM links */}
+                      <div className="mt-2 flex items-center gap-3">
+                        <a
+                          href={`/place/${p.id}?lat=${p.lat}&lng=${p.lng}&name=${encodeURIComponent(p.name)}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white hover:bg-primary/90"
+                        >
+                          Full details →
+                        </a>
+                        <a
+                          href={`https://www.openstreetmap.org/${p.osmId}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-[#9aa0a6] hover:text-primary hover:underline"
+                        >
+                          OSM ↗
+                        </a>
+                      </div>
                     </div>
                   </div>
                 )
