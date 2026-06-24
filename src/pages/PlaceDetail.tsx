@@ -145,7 +145,8 @@ export default function PlaceDetail() {
   const avg = osmOnlyMode
     ? (osmData?.accessScore ?? null)
     : (place.scores.mobility + place.scores.sensory + place.scores.hearing + place.scores.vision) / 4
-  const avgColor = avg != null ? scoreColor(avg) : '#9aa0a6'
+  // While loading in OSM-only mode, show a neutral placeholder colour
+  const avgColor = avg != null ? scoreColor(avg) : osmLoading ? '#bdc1c6' : '#9aa0a6'
   const communityPhotos = reviews.flatMap((r) => r.photos.map((url) => ({ url, verified: r.verified })))
   const bd = osmData?.breakdown
 
@@ -265,9 +266,33 @@ export default function PlaceDetail() {
       {/* ── OSM accessibility score + breakdown ─────────────────── */}
       {osmLoading && (
         <div className="card mb-6 p-5 animate-pulse">
-          <div className="h-4 w-40 rounded bg-border mb-3" />
-          <div className="h-3 w-full rounded bg-border mb-2" />
-          <div className="h-3 w-2/3 rounded bg-border" />
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-2xl bg-[#e8eaed] shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 w-40 rounded bg-[#e8eaed]" />
+              <div className="h-3 w-56 rounded bg-[#e8eaed]" />
+              <div className="h-3 w-32 rounded bg-[#e8eaed]" />
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Fallback when OSM fetch returns nothing */}
+      {!osmLoading && osmOnlyMode && !osmData && (
+        <div className="card mb-6 p-5 flex items-start gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f1f3f4] text-[#9aa0a6]">
+            <Info size={24} />
+          </span>
+          <div>
+            <p className="font-semibold text-[#202124]">No accessibility data found</p>
+            <p className="mt-1 text-sm text-[#6b7280]">This place hasn't been mapped in OpenStreetMap yet. You can help by adding accessibility details.</p>
+            <a
+              href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(place.name)}`}
+              target="_blank" rel="noreferrer"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-primary/90"
+            >
+              Add to OpenStreetMap ↗
+            </a>
+          </div>
         </div>
       )}
       {!osmLoading && osmData && osmData.accessScore !== null && (

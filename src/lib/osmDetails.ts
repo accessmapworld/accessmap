@@ -57,21 +57,23 @@ const A11Y_TAGS = [
 ]
 
 export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSignal): Promise<OsmData | null> {
-  // First try: named elements within 150m
+  // First try: named elements within 200m — includes relations (large hospitals, malls, etc.)
   const q1 = `
     [out:json][timeout:20];
     (
-      node(around:150,${lat},${lng})["name"];
-      way(around:150,${lat},${lng})["name"];
+      node(around:200,${lat},${lng})["name"];
+      way(around:200,${lat},${lng})["name"];
+      relation(around:200,${lat},${lng})["name"];
     );
-    out center tags 15;`
+    out center tags 20;`
 
-  // Fallback: any element with accessibility tags within 50m (no name required)
+  // Fallback: any wheelchair-tagged element within 100m, no name required
   const q2 = `
     [out:json][timeout:20];
     (
-      node(around:50,${lat},${lng})["wheelchair"];
-      way(around:50,${lat},${lng})["wheelchair"];
+      node(around:100,${lat},${lng})["wheelchair"];
+      way(around:100,${lat},${lng})["wheelchair"];
+      relation(around:100,${lat},${lng})["wheelchair"];
     );
     out center tags 5;`
 
