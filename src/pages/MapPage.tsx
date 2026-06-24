@@ -90,21 +90,24 @@ export default function MapPage() {
             )
           }
         },
-        async () => {
+        async (err) => {
           const c = await ipCoords()
           if (c) {
             finish(c[0], c[1], false)
-            if (announce) setGeoError('Showing your approximate area — tap ⊕ and Allow for precise GPS.')
-          } else setGeoError('Could not get your location. Search a place to begin.')
+            if (announce) setGeoError('Showing approximate area — tap the locate button and allow location for precise GPS.')
+          } else if (announce || err.code !== 1 /* not a permission denial on silent load */) {
+            setGeoError('Could not get your location. Search a place to begin.')
+          }
         },
-        { enableHighAccuracy: true, timeout: 8000 },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
       )
     } else {
       ipCoords().then((c) => {
         if (c) {
           finish(c[0], c[1], false)
-          if (announce) setGeoError('Approximate area shown. Open at http://localhost:5173 for precise GPS.')
-        } else setGeoError('Could not get your location. Search a place to begin.')
+        } else if (announce) {
+          setGeoError('Could not get your location. Search a place to begin.')
+        }
       })
     }
   }

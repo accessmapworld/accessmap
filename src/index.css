@@ -127,78 +127,195 @@ h1, h2, h3 {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-/* ─── Easy / Accessibility Mode ───────────────────────────────────── */
-html.easy-mode {
-  /* Force reduced motion regardless of OS setting */
-  --am-motion: 0.01ms;
-}
-html.easy-mode *, html.easy-mode *::before, html.easy-mode *::after {
-  animation-duration: var(--am-motion) !important;
-  transition-duration: var(--am-motion) !important;
+/* ─── Accessibility Mode ───────────────────────────────────────────── */
+
+/* Kill all animation/transition immediately */
+html.a11y-mode *,
+html.a11y-mode *::before,
+html.a11y-mode *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }
 
-/* Base scale-up: 18px base instead of 14/15 */
-html.easy-mode body {
-  font-size: 18px;
-  line-height: 1.65;
+/* High-contrast colour tokens — all text passes WCAG AA (4.5:1 minimum) */
+html.a11y-mode {
+  --color-ink:     #0a0a0a;   /* near-black — 19:1 on white */
+  --color-muted:   #333333;   /* dark grey — 10:1 on white */
+  --color-bg:      #f8f8f8;
+  --color-card:    #ffffff;
+  --color-border:  #595959;   /* visible border — 7:1 on white */
+  --color-primary: #0057a8;   /* WCAG AA on white (5.9:1) */
+  --color-alert:   #b91c1c;   /* WCAG AA red on white */
 }
 
-/* High-contrast colour overrides */
-html.easy-mode {
-  --color-ink: #0a0a0a;
-  --color-muted: #3d3d3d;
-  --color-bg: #ffffff;
-  --color-card: #ffffff;
-  --color-border: #4a4a4a;
-  --color-primary: #005fa3;    /* darker teal/blue for better contrast */
+/* Larger base font, generous line-height, slight letter-spacing for readability */
+html.a11y-mode body {
+  font-size: 18px !important;
+  line-height: 1.7 !important;
+  letter-spacing: 0.01em !important;
+  word-spacing: 0.05em !important;
 }
 
-/* Universal focus ring — thick, high-contrast, always visible */
-html.easy-mode :focus-visible {
-  outline: 3px solid #005fa3 !important;
-  outline-offset: 3px !important;
-  border-radius: 4px;
-}
+/* Scale up all headings so hierarchy is obvious */
+html.a11y-mode h1 { font-size: 2rem !important; }
+html.a11y-mode h2 { font-size: 1.5rem !important; }
+html.a11y-mode h3 { font-size: 1.2rem !important; }
 
-/* Minimum tap target 44×44px on all interactive elements */
-html.easy-mode button,
-html.easy-mode a,
-html.easy-mode [role="button"] {
-  min-height: 44px;
-  min-width: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Larger, bolder text on cards and labels */
-html.easy-mode .card p,
-html.easy-mode .card span,
-html.easy-mode .label {
+/* Body text, paragraphs, spans — minimum 1rem */
+html.a11y-mode p,
+html.a11y-mode li,
+html.a11y-mode td,
+html.a11y-mode th,
+html.a11y-mode label,
+html.a11y-mode .card p,
+html.a11y-mode .card span {
   font-size: 1rem !important;
-  font-weight: 500 !important;
+  line-height: 1.7 !important;
 }
 
-/* Stronger border on all cards */
-html.easy-mode .card {
+/* Labels / monospace tags — make them legible, not tiny */
+html.a11y-mode .label {
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.06em !important;
+}
+
+/* ── Focus rings ─────────────────────────────────────────────────── */
+/* Thick, high-contrast ring on EVERY focusable element, always */
+html.a11y-mode :focus-visible {
+  outline: 3px solid #0057a8 !important;
+  outline-offset: 4px !important;
+  border-radius: 4px !important;
+  box-shadow: 0 0 0 6px rgba(0, 87, 168, 0.18) !important;
+}
+
+/* ── Tap targets ─────────────────────────────────────────────────── */
+/* Buttons get 48×48 minimum (WCAG 2.5.8 — 24px recommended, 44px practical) */
+html.a11y-mode button,
+html.a11y-mode [role="button"] {
+  min-height: 48px !important;
+  min-width: 48px !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+/* Nav links get larger tap target without breaking layout */
+html.a11y-mode nav a {
+  min-height: 48px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0 0.75rem !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+}
+
+/* ── Links ───────────────────────────────────────────────────────── */
+/* All links must be visually distinct — underlined, not just colour */
+html.a11y-mode a:not(.btn):not(.btn-primary):not(.btn-ghost):not(.btn-alert):not(.gmaps-btn):not(.chip):not(.skip-nav):not([class*="leaflet"]) {
+  text-decoration: underline !important;
+  text-underline-offset: 3px !important;
+  text-decoration-thickness: 2px !important;
+}
+
+/* ── Cards & borders ─────────────────────────────────────────────── */
+html.a11y-mode .card {
   border-width: 2px !important;
-  border-color: #4a4a4a !important;
+  border-color: #595959 !important;
+  box-shadow: none !important;   /* shadows are a cue, not a crutch in a11y mode */
 }
 
-/* Larger input text */
-html.easy-mode input,
-html.easy-mode textarea,
-html.easy-mode select {
-  font-size: 1.1rem !important;
+/* ── Inputs ──────────────────────────────────────────────────────── */
+html.a11y-mode input,
+html.a11y-mode textarea,
+html.a11y-mode select {
+  font-size: 1.05rem !important;
+  line-height: 1.6 !important;
   padding: 0.75rem 1rem !important;
   border-width: 2px !important;
+  border-color: #595959 !important;
 }
 
-/* Pill / chip buttons — larger in easy mode */
-html.easy-mode .chip {
-  font-size: 0.95rem !important;
-  padding: 0.55rem 1rem !important;
+/* ── Chips / filter pills ────────────────────────────────────────── */
+html.a11y-mode .chip {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  padding: 0.6rem 1.1rem !important;
   border-width: 2px !important;
+  min-height: 44px !important;
+}
+
+/* ── Buttons (named classes) ─────────────────────────────────────── */
+html.a11y-mode .btn-primary,
+html.a11y-mode .btn-ghost,
+html.a11y-mode .btn-alert,
+html.a11y-mode .gmaps-btn {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  padding: 0.75rem 1.25rem !important;
+  min-height: 48px !important;
+  border-width: 2px !important;
+  border-radius: 0.75rem !important;
+  letter-spacing: 0.01em !important;
+}
+
+/* btn-primary text must always be pure white on #0057a8 (5.9:1) */
+html.a11y-mode .btn-primary {
+  background-color: #0057a8 !important;
+  color: #ffffff !important;
+}
+
+/* btn-ghost gets a visible 2px border */
+html.a11y-mode .btn-ghost {
+  border-color: #595959 !important;
+  color: #0a0a0a !important;
+  background-color: #ffffff !important;
+}
+
+/* btn-alert: darker red for contrast */
+html.a11y-mode .btn-alert {
+  background-color: #b91c1c !important;
+  color: #ffffff !important;
+}
+
+/* ── Map controls ────────────────────────────────────────────────── */
+html.a11y-mode .leaflet-bar a {
+  width: 48px !important;
+  height: 48px !important;
+  line-height: 48px !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  color: #0a0a0a !important;
+}
+html.a11y-mode .leaflet-popup-content {
+  font-size: 17px !important;
+  line-height: 1.65 !important;
+}
+html.a11y-mode .leaflet-popup-content-wrapper {
+  border: 2px solid #595959 !important;
+  box-shadow: none !important;
+}
+
+/* ── Modals / dialogs ────────────────────────────────────────────── */
+html.a11y-mode [role="dialog"] > div {
+  border: 3px solid #595959 !important;
+}
+
+/* ── Score rings / badges ────────────────────────────────────────── */
+html.a11y-mode svg text {
+  font-size: 1em !important;
+  font-weight: 700 !important;
+}
+
+/* ── Hide purely decorative motion (gradients, blurs) ────────────── */
+html.a11y-mode [style*="backdrop-filter"] {
+  backdrop-filter: none !important;
+}
+html.a11y-mode [class*="blur"] {
+  filter: none !important;
 }
 
 /* Skip-to-content link (hidden by default, shown on focus) */

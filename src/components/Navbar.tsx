@@ -98,7 +98,7 @@ export default function Navbar() {
               }`}
             >
               <Accessibility size={16} aria-hidden="true" />
-              <span className="hidden sm:inline">{easyMode ? 'Easy Mode On' : 'Easy Mode'}</span>
+              <span className="hidden sm:inline">{easyMode ? 'Accessibility Mode On' : 'Accessibility Mode'}</span>
             </button>
 
             <NavLink to="/profile" className="ml-1.5" aria-label="Your profile">
@@ -113,12 +113,12 @@ export default function Navbar() {
           </div>
         </nav>
 
-        {/* Easy mode banner */}
+        {/* Accessibility mode banner */}
         {easyMode && (
           <div
             role="status"
             aria-live="polite"
-            className="border-t border-primary/20 bg-primary/8 px-4 py-1.5 text-center text-sm font-medium text-primary"
+            className="border-t-2 border-[#0057a8] bg-[#0057a8] px-4 py-2 text-center text-sm font-semibold text-white"
           >
             Accessibility mode is on — larger text, high contrast, reduced motion, bigger tap targets
           </div>

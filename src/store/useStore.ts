@@ -40,7 +40,7 @@ function loadEasyMode(): boolean {
 }
 
 function applyEasyMode(on: boolean) {
-  document.documentElement.classList.toggle('easy-mode', on)
+  document.documentElement.classList.toggle('a11y-mode', on)
 }
 
 export const useStore = create<AppState>((set, get) => ({
