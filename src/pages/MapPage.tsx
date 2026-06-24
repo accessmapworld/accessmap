@@ -4,6 +4,7 @@ import {
   Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
   MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
   Navigation2, ChevronRight, Car, ArrowUpDown, Zap, Clock, Info, CheckCircle2,
+  Eye, Ear, Brain,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BrandPin from '../components/MapPin'
@@ -17,7 +18,32 @@ import { batchWikiImages } from '../lib/wikipedia'
 import { googleMapsTo } from '../lib/maps'
 import { scorePlace, hasProfile } from '../lib/compatibility'
 import { useStore } from '../store/useStore'
-import type { Place, Alert } from '../types'
+import type { Place, Alert, Dimension } from '../types'
+
+// Disability-type map filters — each predicate decides whether a POI / place is a match
+const DIS_FILTERS: {
+  key: Dimension
+  label: string
+  icon: typeof Eye
+  poi: (p: Poi) => boolean
+}[] = [
+  {
+    key: 'mobility', label: 'Wheelchair', icon: Accessibility,
+    poi: (p) => p.wheelchair === 'yes' || (p.accessScore != null && p.accessScore >= 6) || !!p.hasRamp || !!p.hasLift,
+  },
+  {
+    key: 'vision', label: 'Vision', icon: Eye,
+    poi: (p) => !!p.tactile || !!p.brailleMenu || !!p.visualImpaired,
+  },
+  {
+    key: 'hearing', label: 'Hearing', icon: Ear,
+    poi: (p) => p.hearingLoop === true,
+  },
+  {
+    key: 'sensory', label: 'Sensory', icon: Brain,
+    poi: (p) => p.quietRoom === true,
+  },
+]
 
 export default function MapPage() {
   const nav = useNavigate()
@@ -40,6 +66,14 @@ export default function MapPage() {
   const [panelOpen, setPanelOpen] = useState(false)
   const [showA11y, setShowA11y] = useState(true)
   const [forMeOnly, setForMeOnly] = useState(false)
+  const [dis, setDis] = useState<Set<Dimension>>(new Set())
+  function toggleDis(d: Dimension) {
+    setDis((prev) => {
+      const n = new Set(prev)
+      n.has(d) ? n.delete(d) : n.add(d)
+      return n
+    })
+  }
   // null = no message; string = show toast
   const [locToast, setLocToast] = useState<{ msg: string; type: 'info' | 'error' } | null>(null)
   const needsProfile = useStore((s) => s.needsProfile)
@@ -281,9 +315,11 @@ export default function MapPage() {
   const alertIds = useMemo(() => new Set(alerts.map((a) => a.placeId)), [alerts])
   const visiblePlaces = useMemo(() => {
     if (!showA11y) return []
-    if (forMeOnly && profileActive) return places.filter(p => scorePlace(p, needsProfile).score >= 60)
-    return places
-  }, [showA11y, forMeOnly, places, needsProfile, profileActive])
+    let list = places
+    if (forMeOnly && profileActive) list = list.filter(p => scorePlace(p, needsProfile).score >= 60)
+    if (dis.size) list = list.filter(p => [...dis].every(d => p.scores[d] >= 6))
+    return list
+  }, [showA11y, forMeOnly, places, needsProfile, profileActive, dis])
 
   // "Ghost town" detection: are there any AccessMap accessible places near the view?
   const nearbyAccessibleCount = useMemo(() => {
@@ -294,12 +330,14 @@ export default function MapPage() {
 
   const sortedPois = useMemo(() => {
     const dist = (p: Poi) => (center ? haversineKm(center, [p.lat, p.lng]) : 0)
-    return [...pois].sort((a, b) => {
+    const active = DIS_FILTERS.filter((f) => dis.has(f.key))
+    const filtered = active.length ? pois.filter((p) => active.every((f) => f.poi(p))) : pois
+    return [...filtered].sort((a, b) => {
       const sa = a.accessScore ?? -1, sb = b.accessScore ?? -1
       if (sb !== sa) return sb - sa
       return dist(a) - dist(b)
     })
-  }, [pois, center])
+  }, [pois, center, dis])
 
   const activeCatMeta = CATEGORIES.find((c) => c.key === activeCat)
 
@@ -311,7 +349,7 @@ export default function MapPage() {
       <div id="main-content" className="absolute inset-0 pt-16">
         <MapView
           places={visiblePlaces}
-          pois={pois}
+          pois={sortedPois}
           alertPlaceIds={alertIds}
           userLocation={userLoc}
           focus={focus}
@@ -452,6 +490,19 @@ export default function MapPage() {
               ✦ {needsProfile.name ? `${needsProfile.name.split(' ')[0]}'s map` : 'For Me'}
             </button>
           )}
+          {/* Disability-type filters */}
+          {DIS_FILTERS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => toggleDis(key)}
+              className={`chip shrink-0 ${dis.has(key) ? 'chip-active' : ''}`}
+              aria-pressed={dis.has(key)}
+              title={`Show only places suited to ${label.toLowerCase()} needs`}
+            >
+              <Icon size={15} aria-hidden="true" /> {label}
+            </button>
+          ))}
+          <span className="mx-0.5 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
           {CATEGORIES.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -512,7 +563,16 @@ export default function MapPage() {
                 <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
                   <span className="text-3xl" aria-hidden="true">🔍</span>
                   <p className="text-sm font-medium text-[#202124]">Nothing found nearby</p>
-                  <p className="text-xs text-[#6b7280]">Try moving the map or choosing a different category.</p>
+                  <p className="text-xs text-[#6b7280]">
+                    {dis.size > 0
+                      ? 'No places match your accessibility filters here — clear a filter or move the map.'
+                      : 'Try moving the map or choosing a different category.'}
+                  </p>
+                  {dis.size > 0 && (
+                    <button onClick={() => setDis(new Set())} className="mt-1 text-xs font-medium text-primary hover:underline">
+                      Clear accessibility filters
+                    </button>
+                  )}
                 </div>
               )}
               {sortedPois.map((p, i) => {
