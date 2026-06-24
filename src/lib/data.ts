@@ -3,7 +3,7 @@ import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where,
   orderBy, serverTimestamp, Timestamp,
 } from 'firebase/firestore'
-import type { Place, Review, Alert } from '../types'
+import type { Place, Review, Alert, AccessSpecs } from '../types'
 import { mockPlaces, mockReviews, mockAlerts } from './mockData'
 import { checkRate } from './rateLimit'
 
@@ -126,4 +126,31 @@ export async function resolveAlert(id: string): Promise<void> {
     return
   }
   await updateDoc(doc(db, 'alerts', id), { status: 'resolved', resolvedAt: serverTimestamp() })
+}
+
+/* ----------------------------- Access Specs ----------------------- */
+const LS_SPECS = 'accessmap.specs.v1'
+function loadSpecs(): AccessSpecs[] {
+  try { const r = localStorage.getItem(LS_SPECS); return r ? JSON.parse(r) : [] } catch { return [] }
+}
+function saveSpecs(s: AccessSpecs[]) { try { localStorage.setItem(LS_SPECS, JSON.stringify(s)) } catch { /* */ } }
+let localSpecs: AccessSpecs[] = typeof localStorage !== 'undefined' ? loadSpecs() : []
+
+export async function getSpecs(placeId: string): Promise<AccessSpecs[]> {
+  if (!FIREBASE_ENABLED || !db) return localSpecs.filter(s => s.placeId === placeId).sort((a, b) => b.contributedAt - a.contributedAt)
+  const q = query(collection(db, 'places', placeId, 'specs'), orderBy('contributedAt', 'desc'))
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AccessSpecs, 'id'>), contributedAt: toMs(d.data().contributedAt) }))
+}
+
+export async function addSpecs(input: Omit<AccessSpecs, 'id' | 'contributedAt'>): Promise<AccessSpecs> {
+  checkRate('report', { minGapMs: 5000, maxPerHour: 20, label: 'spec contribution' })
+  if (!FIREBASE_ENABLED || !db) {
+    const s: AccessSpecs = { ...input, id: uid(), contributedAt: Date.now() }
+    localSpecs.unshift(s)
+    saveSpecs(localSpecs)
+    return s
+  }
+  const ref = await addDoc(collection(db, 'places', input.placeId, 'specs'), { ...input, contributedAt: serverTimestamp() })
+  return { ...input, id: ref.id, contributedAt: Date.now() }
 }

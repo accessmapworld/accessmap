@@ -27,6 +27,38 @@ export interface Place {
   trailDifficulty?: 'easy' | 'moderate' | 'hard' | 'expert'
 }
 
+/** Crowdsourced physical accessibility specs for a place */
+export interface AccessSpecs {
+  id: string
+  placeId: string
+  contributedBy: string        // display name
+  contributedAt: number
+  // entrances
+  hasStepFreeEntrance?: boolean
+  entranceStepCount?: number   // 0 = step-free
+  rampPresent?: boolean
+  rampGradient?: 'gentle' | 'moderate' | 'steep'
+  rampHasHandrails?: boolean
+  doorWidthCm?: number         // cm
+  doorType?: 'manual' | 'automatic' | 'heavy_manual' | 'revolving'
+  // interior
+  hasLift?: boolean
+  liftDoorWidthCm?: number
+  corridorWidthCm?: number     // narrowest point
+  hasAccessibleToilet?: boolean
+  toiletGrabRails?: boolean
+  turningSpaceCm?: number      // turning circle in toilet
+  // surfaces
+  floorSurface?: 'smooth' | 'carpet' | 'uneven' | 'cobblestone' | 'gravel'
+  hasTactilePaving?: boolean
+  // parking
+  hasDisabledParking?: boolean
+  parkingDistanceM?: number
+  // notes
+  notes?: string
+  photos?: string[]            // URLs of supporting photos
+}
+
 export interface Review {
   id: string
   placeId: string

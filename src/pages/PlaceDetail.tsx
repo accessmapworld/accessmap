@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { MapPin as MapPinIcon, Flag, Star, Route as RouteIcon, ShieldCheck, ShieldAlert, Bookmark, ExternalLink, BadgeCheck } from 'lucide-react'
+import { MapPin as MapPinIcon, Flag, Star, Route as RouteIcon, ShieldCheck, ShieldAlert, Bookmark, ExternalLink, BadgeCheck, CheckCircle2 } from 'lucide-react'
 import { googleMapsTo } from '../lib/maps'
 import Layout from '../components/Layout'
 import ScoreRing from '../components/ScoreRing'
@@ -8,11 +8,13 @@ import AlertBanner from '../components/AlertBanner'
 import Modal from '../components/Modal'
 import ReportForm from '../components/ReportForm'
 import ReviewForm from '../components/ReviewForm'
-import { getPlace, getReviews, getAlerts, resolveAlert } from '../lib/data'
+import { getPlace, getReviews, getAlerts, resolveAlert, getSpecs } from '../lib/data'
 import { useStore } from '../store/useStore'
 import { scorePlace, hasProfile, beforeYouGo } from '../lib/compatibility'
 import MatchBadge from '../components/MatchBadge'
-import type { Place, Review, Alert } from '../types'
+import SpecsPanel from '../components/SpecsPanel'
+import SpecsForm from '../components/SpecsForm'
+import type { Place, Review, Alert, AccessSpecs } from '../types'
 
 function timeAgo(ms: number) {
   const d = Math.floor((Date.now() - ms) / 86400000)
@@ -26,8 +28,10 @@ export default function PlaceDetail() {
   const [place, setPlace] = useState<Place | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
+  const [specs, setSpecs] = useState<AccessSpecs[]>([])
   const [showReport, setShowReport] = useState(false)
   const [showReview, setShowReview] = useState(false)
+  const [showSpecsForm, setShowSpecsForm] = useState(false)
   const user = useStore((s) => s.user)
   const toggleSaved = useStore((s) => s.toggleSaved)
   const needsProfile = useStore((s) => s.needsProfile)
@@ -37,6 +41,7 @@ export default function PlaceDetail() {
     setPlace(await getPlace(id))
     setReviews(await getReviews(id))
     setAlerts(await getAlerts(id))
+    setSpecs(await getSpecs(id))
   }
   useEffect(() => { load() }, [id])
 
@@ -165,18 +170,25 @@ export default function PlaceDetail() {
 
       {/* Actions */}
       <div className="mt-6 flex flex-wrap gap-3">
-        <button onClick={() => setShowReview(true)} className="btn-primary"><Star size={16} /> Submit a review</button>
-        <button onClick={() => setShowReport(true)} className="btn-alert"><Flag size={16} /> Report an issue</button>
-        <Link to="/route" className="btn-ghost"><RouteIcon size={16} /> Accessible route</Link>
-        <a
-          href={googleMapsTo([place.lat, place.lng])}
-          target="_blank"
-          rel="noreferrer"
-          className="gmaps-btn"
-        >
-          <ExternalLink size={16} /> Open in Google Maps
+        <button onClick={() => setShowReview(true)} className="btn-primary"><Star size={16} /> Write a review</button>
+        <button onClick={() => setShowSpecsForm(true)} className="btn-ghost"><CheckCircle2 size={16} /> Add physical specs</button>
+        <button onClick={() => setShowReport(true)} className="btn-alert"><Flag size={16} /> Report issue</button>
+        <Link to="/route" className="btn-ghost"><RouteIcon size={16} /> Route</Link>
+        <a href={googleMapsTo([place.lat, place.lng])} target="_blank" rel="noreferrer" className="gmaps-btn">
+          <ExternalLink size={16} /> Google Maps
         </a>
       </div>
+
+      {/* Physical specs */}
+      <section className="card mt-6 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="label">Physical access specs</h2>
+          <button onClick={() => setShowSpecsForm(true)} className="text-xs text-primary font-medium hover:underline">
+            + Add / update
+          </button>
+        </div>
+        <SpecsPanel specs={specs} />
+      </section>
 
       {/* Photo gallery */}
       {photos.length > 0 && (
@@ -231,6 +243,9 @@ export default function PlaceDetail() {
       </Modal>
       <Modal open={showReview} onClose={() => setShowReview(false)} title="Submit a review">
         <ReviewForm placeId={id} onDone={() => { setShowReview(false); load() }} />
+      </Modal>
+      <Modal open={showSpecsForm} onClose={() => setShowSpecsForm(false)} title="Add physical access specs">
+        <SpecsForm placeId={id} onDone={() => { setShowSpecsForm(false); load() }} />
       </Modal>
     </Layout>
   )
