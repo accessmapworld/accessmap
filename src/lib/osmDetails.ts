@@ -57,18 +57,30 @@ const A11Y_TAGS = [
 ]
 
 export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSignal): Promise<OsmData | null> {
-  // Use 'out center tags' (not 'out body') — body includes full way geometry, wastes bandwidth
-  const q = `
+  // First try: named elements within 150m
+  const q1 = `
     [out:json][timeout:20];
     (
-      node(around:100,${lat},${lng})["name"];
-      way(around:100,${lat},${lng})["name"];
+      node(around:150,${lat},${lng})["name"];
+      way(around:150,${lat},${lng})["name"];
     );
-    out center tags 10;`
+    out center tags 15;`
+
+  // Fallback: any element with accessibility tags within 50m (no name required)
+  const q2 = `
+    [out:json][timeout:20];
+    (
+      node(around:50,${lat},${lng})["wheelchair"];
+      way(around:50,${lat},${lng})["wheelchair"];
+    );
+    out center tags 5;`
 
   let data: any
   try {
-    data = await overpassQuery(q, signal)
+    data = await overpassQuery(q1, signal)
+    if (!(data?.elements?.length)) {
+      data = await overpassQuery(q2, signal)
+    }
   } catch { return null }
 
   const elements: any[] = data?.elements ?? []
@@ -164,13 +176,17 @@ export async function fetchOsmDetails(lat: number, lng: number, signal?: AbortSi
 
   // ── Image ─────────────────────────────────────────────────────────
   let imageUrl: string | undefined
-  if (t.image && /^https?:\/\//.test(t.image)) imageUrl = t.image
-  else if (t.wikimedia_commons) {
+  if (t.image && /^https?:\/\//.test(t.image)) {
+    imageUrl = t.image
+  } else if (t.wikimedia_commons) {
     const file = t.wikimedia_commons.replace(/^(File:|Category:)/, '').trim()
     imageUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file.replace(/ /g, '_'))}?width=800`
-  }
-  if (!imageUrl && t.name) {
-    imageUrl = await fetchWikiImage(t.name) || undefined
+  } else if (t.name) {
+    // Race Wikipedia against a 2s timeout so it never blocks OSM details from rendering
+    imageUrl = await Promise.race([
+      fetchWikiImage(t.name),
+      new Promise<undefined>(res => setTimeout(() => res(undefined), 2000)),
+    ]) || undefined
   }
 
   // ── Extras (displayed in the info card, not badge section) ────────
