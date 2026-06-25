@@ -54,7 +54,7 @@ export default function AccessibilityPanel() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Adjust my experience"
-        className="fixed bottom-5 left-5 z-[860] flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-white shadow-map transition-transform hover:scale-105"
+        className="fixed bottom-[72px] left-4 z-[860] flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-white shadow-map transition-transform hover:scale-105 sm:bottom-5 sm:left-5"
       >
         <Accessibility size={18} />
         <span className="hidden sm:inline">Adjust my experience</span>

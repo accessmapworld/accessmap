@@ -35,7 +35,7 @@ export default function EmptyStateCapture({ area, onMapFirst, onDismiss }: {
   }
 
   return (
-    <div className="pointer-events-auto absolute bottom-6 left-1/2 z-[760] w-[min(92vw,30rem)] -translate-x-1/2 animate-page-in">
+    <div className="pointer-events-auto absolute bottom-[72px] left-1/2 z-[760] w-[min(92vw,30rem)] -translate-x-1/2 animate-page-in sm:bottom-6">
       <div className="card relative p-5 shadow-map">
         <button onClick={onDismiss} className="absolute right-3 top-3 rounded-full p-1 text-muted hover:bg-bg hover:text-ink" aria-label="Dismiss"><X size={16} /></button>
         <div className="flex items-start gap-3">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Map as MapIcon, Accessibility, UserCog, LogIn, ScanLine } from 'lucide-react'
 import MapPin from './MapPin'
@@ -20,6 +20,21 @@ export default function Navbar() {
   const [showNeeds, setShowNeeds] = useState(false)
   const [showAuth, setShowAuth] = useState(false)
   const profileSet = hasProfile(needsProfile)
+  const headerRef = useRef<HTMLElement>(null)
+
+  // Publish the real header height so fixed-offset layouts (the map) stay
+  // correct when the height changes (accessibility mode banner, larger nav,
+  // mobile wrapping). Consumers read var(--app-header-h).
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const apply = () => document.documentElement.style.setProperty('--app-header-h', `${el.offsetHeight}px`)
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(el)
+    window.addEventListener('resize', apply)
+    return () => { ro.disconnect(); window.removeEventListener('resize', apply) }
+  }, [easyMode])
 
   const links = [
     { to: '/map', label: 'Map', icon: MapIcon },
@@ -34,7 +49,7 @@ export default function Navbar() {
       {/* Skip-to-content for keyboard/screen reader users */}
       <a href="#main-content" className="skip-nav">Skip to main content</a>
 
-      <header className="fixed inset-x-0 top-0 z-[900] bg-white/95 backdrop-blur-md border-b border-[#f1f3f4]" style={{ boxShadow: '0 1px 0 #e8eaed, 0 2px 8px rgba(60,64,67,0.08)' }}>
+      <header ref={headerRef} className="fixed inset-x-0 top-0 z-[900] bg-white/95 backdrop-blur-md border-b border-[#f1f3f4]" style={{ boxShadow: '0 1px 0 #e8eaed, 0 2px 8px rgba(60,64,67,0.08)' }}>
         <nav className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4" aria-label="Main navigation">
           <Link to="/" className="flex items-center gap-2.5" aria-label="AccessMap home">
             <MapPin size={30} pulse={false} />
@@ -44,19 +59,21 @@ export default function Navbar() {
           </Link>
 
           <div className="flex items-center gap-0.5">
-            {links.map(({ to, label, icon: Icon }) => (
-              <NavLink key={to} to={to} className={navCls} aria-label={label}>
-                <Icon size={15} />
-                <span className="hidden sm:inline">{label}</span>
-              </NavLink>
-            ))}
-
-            {user?.role === 'admin' && (
-              <NavLink to="/admin" className={navCls} aria-label="Admin">
-                <ShieldCheck size={15} />
-                <span className="hidden sm:inline">Admin</span>
-              </NavLink>
-            )}
+            {/* Primary links — hidden on mobile (BottomNav covers them) */}
+            <div className="hidden items-center gap-0.5 sm:flex">
+              {links.map(({ to, label, icon: Icon }) => (
+                <NavLink key={to} to={to} className={navCls} aria-label={label}>
+                  <Icon size={15} />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+              {user?.role === 'admin' && (
+                <NavLink to="/admin" className={navCls} aria-label="Admin">
+                  <ShieldCheck size={15} />
+                  <span>Admin</span>
+                </NavLink>
+              )}
+            </div>
 
             <button
               onClick={() => setShowNeeds(true)}

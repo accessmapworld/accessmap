@@ -7,6 +7,7 @@ import {
   Eye, Ear, Brain,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
+import BottomNav from '../components/BottomNav'
 import BrandPin from '../components/MapPin'
 import MapView from '../components/MapView'
 import { scoreColor } from '../components/ScoreRing'
@@ -346,7 +347,7 @@ export default function MapPage() {
       <Navbar />
 
       {/* Map fills everything below nav */}
-      <div id="main-content" className="absolute inset-0 pt-16">
+      <div id="main-content" className="absolute inset-0" style={{ paddingTop: 'var(--app-header-h, 64px)' }}>
         <MapView
           places={visiblePlaces}
           pois={sortedPois}
@@ -360,7 +361,7 @@ export default function MapPage() {
 
       {/* OSM attribution */}
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
-        className="absolute bottom-2 right-2 z-[700] rounded-md bg-white/90 px-2 py-0.5 text-[10px] text-[#6b7280] shadow-sm hover:text-[#111827]">
+        className="absolute bottom-[64px] right-2 z-[700] rounded-md bg-white/90 px-2 py-0.5 text-[10px] text-[#6b7280] shadow-sm hover:text-[#111827] sm:bottom-2">
         © OpenStreetMap contributors
       </a>
 
@@ -368,7 +369,8 @@ export default function MapPage() {
       <div
         role="region"
         aria-label="Search and filter panel"
-        className="pointer-events-none absolute left-0 top-16 bottom-0 z-[800] flex w-full flex-col gap-2.5 px-3 pb-4 pt-3 sm:w-[25rem]"
+        className="pointer-events-none absolute left-0 bottom-[58px] z-[800] flex w-full flex-col gap-2.5 px-3 pb-4 pt-3 sm:bottom-0 sm:w-[25rem]"
+        style={{ top: 'var(--app-header-h, 64px)' }}
       >
 
         {/* Search bar */}
@@ -830,6 +832,9 @@ export default function MapPage() {
           </div>
         </div>
       )}
+
+      {/* Mobile bottom navigation */}
+      <BottomNav />
     </div>
   )
 }
