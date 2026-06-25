@@ -3,7 +3,7 @@ import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where,
   orderBy, serverTimestamp, Timestamp,
 } from 'firebase/firestore'
-import type { Place, Review, Alert, AccessSpecs } from '../types'
+import type { Place, Review, Alert, AccessSpecs, Scores } from '../types'
 import { mockPlaces, mockReviews, mockAlerts } from './mockData'
 import { checkRate } from './rateLimit'
 
@@ -73,18 +73,62 @@ export async function getReviews(placeId: string): Promise<Review[]> {
   return snap.docs.map((d) => ({ id: d.id, placeId, ...(d.data() as Omit<Review, 'id' | 'placeId'>), createdAt: toMs(d.data().createdAt) }))
 }
 
-export async function addReview(input: Omit<Review, 'id' | 'createdAt'>): Promise<Review> {
+/* Review quality filter — silently hides low-quality or inappropriate content */
+const BAD_PATTERNS = [
+  /\b(fuck|shit|cunt|bitch|asshole|bastard|damn|hell|ass\b|dick|cock|pussy|whore|slut|nigger|nigga|faggot|retard)\b/i,
+  /(.)\1{5,}/,        // spammy repeated chars e.g. "aaaaaaaa"
+  /https?:\/\//i,     // links
+  /\b(buy|sell|cheap|discount|promo|click here|visit us|order now|free money)\b/i, // spam
+]
+
+function reviewPasses(body: string, scores: Scores): boolean {
+  if (BAD_PATTERNS.some(p => p.test(body))) return false
+  if (body.trim().length < 20) return false
+  // all scores at exactly 0 or all at 10 with no real text = likely spam
+  const vals = Object.values(scores)
+  const allSame = vals.every(v => v === vals[0])
+  if (allSame && body.trim().length < 40) return false
+  return true
+}
+
+export async function addReview(input: Omit<Review, 'id' | 'createdAt' | 'status'>): Promise<Review> {
   checkRate('review', { minGapMs: 8000, maxPerHour: 15, label: 'review' })
+  const status: 'approved' | 'hidden' = reviewPasses(input.body, input.scores) ? 'approved' : 'hidden'
+  const payload = { ...input, status }
   if (!FIREBASE_ENABLED || !db) {
-    const review: Review = { ...input, id: uid(), createdAt: Date.now() }
+    const review: Review = { ...payload, id: uid(), createdAt: Date.now() }
     local.reviews.unshift(review)
     saveLocal(local)
     return review
   }
   const ref = await addDoc(collection(db, 'places', input.placeId, 'reviews'), {
-    ...input, createdAt: serverTimestamp(),
+    ...payload, createdAt: serverTimestamp(),
   })
-  return { ...input, id: ref.id, createdAt: Date.now() }
+  return { ...payload, id: ref.id, createdAt: Date.now() }
+}
+
+export async function getHomeReviews(limit = 6): Promise<Review[]> {
+  if (!FIREBASE_ENABLED || !db) {
+    return local.reviews
+      .filter(r => r.status === 'approved' && r.body.trim().length >= 20)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, limit)
+  }
+  // Firestore: collectionGroup across all places/reviews
+  const { collectionGroup: cg, limit: fsLimit } = await import('firebase/firestore')
+  const q = query(
+    cg(db, 'reviews'),
+    where('status', '==', 'approved'),
+    orderBy('createdAt', 'desc'),
+    fsLimit(limit),
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({
+    id: d.id,
+    placeId: d.ref.parent.parent?.id ?? '',
+    ...(d.data() as Omit<Review, 'id' | 'placeId'>),
+    createdAt: toMs(d.data().createdAt),
+  }))
 }
 
 /* ----------------------------- Alerts ----------------------------- */

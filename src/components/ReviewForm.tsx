@@ -36,11 +36,12 @@ export default function ReviewForm({ placeId, onDone }: { placeId?: string; onDo
         placeId: selected,
         userId: user?.uid ?? 'anon',
         userName: user?.displayName ?? 'Anonymous',
-        userPhoto: user?.photoURL,
+        userPhoto: user?.photoURL ?? undefined,
         scores,
         body: body.trim(),
         photos: photos.map((p) => p.url),
         verified: photos.length > 0 && photos.every((p) => p.verified),
+        placeName: places.find(p => p.id === selected)?.name,
       })
       setDone(true)
       setTimeout(() => onDone?.(), 900)

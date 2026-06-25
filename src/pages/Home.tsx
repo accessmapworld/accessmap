@@ -10,6 +10,8 @@ import Layout from '../components/Layout'
 import Aurora from '../components/reactbits/Aurora'
 import GradientText from '../components/reactbits/GradientText'
 import ShinyText from '../components/reactbits/ShinyText'
+import { getHomeReviews } from '../lib/data'
+import type { Review } from '../types'
 
 // ─── Animated counter ─────────────────────────────────────────────────────────
 function Counter({ to, suffix = '', duration = 1800 }: { to: number; suffix?: string; duration?: number }) {
@@ -78,6 +80,123 @@ const WHY_NOW = [
   { stat: 67, suffix: '%', label: 'rise in ADA lawsuits over 5 years', src: 'Seyfarth 2024' },
   { stat: 50, suffix: 'M+', label: 'venues in the AccessMap database', src: 'OpenStreetMap' },
 ]
+
+// ─── Reviews section ──────────────────────────────────────────────────────────
+function ScoreDot({ val }: { val: number }) {
+  const color = val >= 8 ? '#1e8e3e' : val >= 5 ? '#f59e0b' : '#ea4335'
+  return <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} aria-hidden="true" />
+}
+
+function ReviewsSection() {
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getHomeReviews(6).then(r => { setReviews(r); setLoading(false) })
+  }, [])
+
+  const avg = (r: Review) =>
+    Math.round((r.scores.mobility + r.scores.sensory + r.scores.hearing + r.scores.vision) / 4 * 10) / 10
+
+  return (
+    <section aria-labelledby="reviews-heading" className="bg-[#f8f9fa] border-y border-border px-6 py-16">
+      <div className="mx-auto max-w-5xl">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
+          <div>
+            <h2 id="reviews-heading" className="text-2xl font-semibold text-ink">Community reviews</h2>
+            <p className="mt-1 text-muted text-sm">Real experiences from real people.</p>
+          </div>
+          <Link
+            to="/submit-review"
+            className="inline-flex items-center gap-2 rounded-full bg-[#1a73e8] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#1557b0] transition-colors shadow-sm self-start sm:self-auto"
+          >
+            <Star size={14} aria-hidden="true" />
+            Write a review
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-48 rounded-2xl bg-white border border-border animate-pulse" />
+            ))}
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-white py-20 text-center px-6">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f1f3f4] mb-4">
+              <Star size={28} className="text-[#dadce0]" aria-hidden="true" />
+            </div>
+            <p className="font-semibold text-ink text-lg">No reviews yet</p>
+            <p className="mt-2 max-w-sm text-muted text-sm leading-relaxed">
+              Be the first to share your experience finding an accessible venue.
+              Your review helps millions of people navigate the world.
+            </p>
+            <Link
+              to="/submit-review"
+              className="mt-6 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-6 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Star size={14} aria-hidden="true" />
+              Add the first review
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {reviews.map(r => (
+              <figure key={r.id} className="flex flex-col gap-3 rounded-2xl border border-border bg-white p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {r.userPhoto ? (
+                      <img src={r.userPhoto} alt="" className="h-8 w-8 rounded-full border border-border" />
+                    ) : (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f1f3f4] text-xs font-bold text-muted">
+                        {r.userName.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold text-ink leading-none">{r.userName}</p>
+                      <p className="text-[11px] text-muted mt-0.5">
+                        {new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 rounded-full bg-[#f8f9fa] border border-border px-2.5 py-1">
+                    <ScoreDot val={avg(r)} />
+                    <span className="text-sm font-bold text-ink">{avg(r)}</span>
+                  </div>
+                </div>
+
+                {r.placeName && (
+                  <p className="text-[11px] font-medium text-primary truncate">{r.placeName}</p>
+                )}
+
+                <blockquote className="text-sm text-ink leading-relaxed flex-1 line-clamp-4">
+                  "{r.body}"
+                </blockquote>
+
+                <div className="grid grid-cols-4 gap-1 pt-2 border-t border-border">
+                  {(['mobility', 'hearing', 'vision', 'sensory'] as const).map(dim => (
+                    <div key={dim} className="text-center">
+                      <p className="text-[10px] text-muted capitalize">{dim}</p>
+                      <p className="text-xs font-semibold text-ink">{r.scores[dim]}</p>
+                    </div>
+                  ))}
+                </div>
+              </figure>
+            ))}
+          </div>
+        )}
+
+        {reviews.length > 0 && (
+          <div className="mt-6 text-center">
+            <Link to="/submit-review" className="text-sm font-medium text-primary hover:underline">
+              Share your experience →
+            </Link>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Home() {
@@ -293,42 +412,7 @@ export default function Home() {
       </section>
 
       {/* ── REVIEWS ───────────────────────────────────────────────────────── */}
-      <section aria-labelledby="reviews-heading" className="bg-[#f8f9fa] border-y border-border px-6 py-16">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
-            <div>
-              <h2 id="reviews-heading" className="text-2xl font-semibold text-ink">Community reviews</h2>
-              <p className="mt-1 text-muted text-sm">Real experiences from real people — unfiltered.</p>
-            </div>
-            <Link
-              to="/submit-review"
-              className="inline-flex items-center gap-2 rounded-full bg-[#1a73e8] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#1557b0] transition-colors shadow-sm self-start sm:self-auto"
-            >
-              <Star size={14} aria-hidden="true" />
-              Write a review
-            </Link>
-          </div>
-
-          {/* Empty state */}
-          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-white py-20 text-center px-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f1f3f4] mb-4">
-              <Star size={28} className="text-[#dadce0]" aria-hidden="true" />
-            </div>
-            <p className="font-semibold text-ink text-lg">No reviews yet</p>
-            <p className="mt-2 max-w-sm text-muted text-sm leading-relaxed">
-              Be the first to share your experience finding an accessible venue.
-              Your review helps millions of people navigate the world.
-            </p>
-            <Link
-              to="/submit-review"
-              className="mt-6 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-6 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
-            >
-              <Star size={14} aria-hidden="true" />
-              Add the first review
-            </Link>
-          </div>
-        </div>
-      </section>
+      <ReviewsSection />
 
       {/* ── WHY NOW ───────────────────────────────────────────────────────── */}
       <section aria-labelledby="why-heading" className="px-3 py-6">

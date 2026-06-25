@@ -79,6 +79,8 @@ export interface Review {
   photos: string[]
   verified: boolean
   createdAt: number
+  status?: 'approved' | 'hidden'
+  placeName?: string
 }
 
 export type AlertType =
