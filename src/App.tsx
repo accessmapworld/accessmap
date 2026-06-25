@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Routes, Route, Link } from 'react-router-dom'
 import { useStore } from './store/useStore'
 import AccessibilityPanel from './components/AccessibilityPanel'
@@ -20,13 +20,21 @@ const Councils = lazy(() => import('./pages/Councils'))
 const Security = lazy(() => import('./pages/Security'))
 const Accessibility = lazy(() => import('./pages/Accessibility'))
 const ForBusiness = lazy(() => import('./pages/ForBusiness'))
+const ScanPage = lazy(() => import('./pages/ScanPage'))
 
 function RouteFallback() {
+  const [slow, setSlow] = useState(false)
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 4000); return () => clearTimeout(t) }, [])
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg" role="status" aria-live="polite">
       <div className="flex flex-col items-center gap-3 text-muted">
         <span className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary" aria-hidden="true" />
-        <span className="text-sm">Loading…</span>
+        <span className="text-sm">{slow ? 'Still loading — check your connection…' : 'Loading…'}</span>
+        {slow && (
+          <button onClick={() => window.location.reload()} className="mt-2 text-xs text-primary underline">
+            Reload page
+          </button>
+        )}
       </div>
     </div>
   )
@@ -62,6 +70,7 @@ export default function App() {
           <Route path="/submit-review" element={<SubmitReview />} />
           <Route path="/business" element={<BusinessRegister />} />
           <Route path="/for-business" element={<ForBusiness />} />
+          <Route path="/scan" element={<ScanPage />} />
           <Route path="/accessibility" element={<Accessibility />} />
           <Route path="/councils" element={<Councils />} />
           <Route path="/security" element={<Security />} />

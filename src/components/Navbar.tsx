@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Map as MapIcon, Accessibility, UserCog, LogIn } from 'lucide-react'
+import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Map as MapIcon, Accessibility, UserCog, LogIn, ScanLine } from 'lucide-react'
 import MapPin from './MapPin'
 import { useStore } from '../store/useStore'
 import { hasProfile } from '../lib/compatibility'
@@ -23,6 +23,7 @@ export default function Navbar() {
 
   const links = [
     { to: '/map', label: 'Map', icon: MapIcon },
+    { to: '/scan', label: 'Scan', icon: ScanLine },
     { to: '/route', label: 'Route', icon: RouteIcon },
     { to: '/report', label: 'Report', icon: Flag },
     { to: '/submit-review', label: 'Review', icon: Star },
