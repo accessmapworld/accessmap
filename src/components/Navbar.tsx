@@ -79,7 +79,7 @@ export default function Navbar() {
               }`}
             >
               <Accessibility size={15} />
-              <span className="hidden sm:inline">{easyMode ? 'A11y On' : 'A11y'}</span>
+              <span className="hidden sm:inline">{easyMode ? 'Accessibility On' : 'Accessibility'}</span>
             </button>
 
             {user ? (
