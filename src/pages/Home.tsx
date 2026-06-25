@@ -71,11 +71,6 @@ const B2B = [
   { icon: Users,     color: '#f97316', label: 'Real estate',           body: 'Accessibility ratings across your entire portfolio.' },
 ]
 
-const TESTIMONIALS = [
-  { quote: "Finally a map that tells me the ramp width AND whether the lift is working — before I leave home.", name: 'Sarah K.', role: 'Manual wheelchair user', initials: 'SK', color: '#0ABFBF' },
-  { quote: "AccessMap is the only tool that shows me which venues have hearing loops. Game-changer.", name: 'David M.', role: 'Hard of hearing', initials: 'DM', color: '#1a73e8' },
-  { quote: "As a carer I spent hours ringing ahead. Now I see door widths, WC, and parking in seconds.", name: 'Priya T.', role: 'Accessibility advocate', initials: 'PT', color: '#7c3aed' },
-]
 
 const WHY_NOW = [
   { stat: 1.3, suffix: 'B', label: 'people globally with a disability', src: 'WHO 2023' },
@@ -192,12 +187,12 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-1 gap-4">
             {[
-              { emoji: '🗺️', title: 'Sparse', desc: 'Google Maps averages 1 accessibility tag per venue worldwide.' },
-              { emoji: '🐢', title: 'Manual & slow', desc: 'Human volunteers cannot keep pace with the physical world changing daily.' },
-              { emoji: '⚠️', title: 'Dangerously stale', desc: 'Lifts reported working are out of service. Ramps have been removed. No one knows.' },
-            ].map(({ emoji, title, desc }) => (
+              { color: '#ea4335', title: 'Sparse', desc: 'Google Maps averages 1 accessibility tag per venue worldwide.' },
+              { color: '#f97316', title: 'Manual & slow', desc: 'Human volunteers cannot keep pace with the physical world changing daily.' },
+              { color: '#eab308', title: 'Dangerously stale', desc: 'Lifts reported working are out of service. Ramps have been removed. No one knows.' },
+            ].map(({ color, title, desc }) => (
               <div key={title} className="flex items-start gap-4 rounded-2xl border border-border bg-white p-5 shadow-sm">
-                <span className="text-2xl" role="img" aria-hidden="true">{emoji}</span>
+                <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} aria-hidden="true" />
                 <div>
                   <p className="font-semibold text-ink">{title}</p>
                   <p className="mt-1 text-sm text-muted leading-relaxed">{desc}</p>
@@ -297,28 +292,40 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
-      <section aria-labelledby="testimonials-heading" className="bg-[#f8f9fa] border-y border-border px-6 py-16">
+      {/* ── REVIEWS ───────────────────────────────────────────────────────── */}
+      <section aria-labelledby="reviews-heading" className="bg-[#f8f9fa] border-y border-border px-6 py-16">
         <div className="mx-auto max-w-5xl">
-          <h2 id="testimonials-heading" className="text-2xl font-semibold text-ink text-center mb-8">
-            Real people. Real difference.
-          </h2>
-          <div className="grid gap-5 sm:grid-cols-3">
-            {TESTIMONIALS.map(({ quote, name, role, initials, color }) => (
-              <figure key={name} className="flex flex-col gap-4 rounded-2xl border border-border bg-white p-6 shadow-sm">
-                <div className="flex gap-0.5" aria-label="5 stars">
-                  {[...Array(5)].map((_, i) => <Star key={i} size={13} className="fill-[#f59e0b] text-[#f59e0b]" aria-hidden="true" />)}
-                </div>
-                <blockquote className="text-sm text-ink leading-relaxed flex-1">"{quote}"</blockquote>
-                <figcaption className="flex items-center gap-3 pt-2 border-t border-border">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: color }} aria-hidden="true">{initials}</span>
-                  <div>
-                    <p className="text-sm font-semibold text-ink">{name}</p>
-                    <p className="text-xs text-muted">{role}</p>
-                  </div>
-                </figcaption>
-              </figure>
-            ))}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
+            <div>
+              <h2 id="reviews-heading" className="text-2xl font-semibold text-ink">Community reviews</h2>
+              <p className="mt-1 text-muted text-sm">Real experiences from real people — unfiltered.</p>
+            </div>
+            <Link
+              to="/submit-review"
+              className="inline-flex items-center gap-2 rounded-full bg-[#1a73e8] px-6 py-2.5 text-sm font-semibold text-white hover:bg-[#1557b0] transition-colors shadow-sm self-start sm:self-auto"
+            >
+              <Star size={14} aria-hidden="true" />
+              Write a review
+            </Link>
+          </div>
+
+          {/* Empty state */}
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-white py-20 text-center px-6">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#f1f3f4] mb-4">
+              <Star size={28} className="text-[#dadce0]" aria-hidden="true" />
+            </div>
+            <p className="font-semibold text-ink text-lg">No reviews yet</p>
+            <p className="mt-2 max-w-sm text-muted text-sm leading-relaxed">
+              Be the first to share your experience finding an accessible venue.
+              Your review helps millions of people navigate the world.
+            </p>
+            <Link
+              to="/submit-review"
+              className="mt-6 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-6 py-2.5 text-sm font-semibold text-primary hover:bg-primary/10 transition-colors"
+            >
+              <Star size={14} aria-hidden="true" />
+              Add the first review
+            </Link>
           </div>
         </div>
       </section>
