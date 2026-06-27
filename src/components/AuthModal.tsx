@@ -132,6 +132,7 @@ export default function AuthModal({ open, onClose }: Props) {
         <div className="mb-5 flex rounded-xl border border-border p-1" role="tablist" aria-label="Sign-in method">
           <button
             ref={firstFocusRef}
+            id="tab-btn-google"
             role="tab"
             aria-selected={tab === 'google'}
             aria-controls="tab-google"
@@ -141,6 +142,7 @@ export default function AuthModal({ open, onClose }: Props) {
             Google
           </button>
           <button
+            id="tab-btn-email"
             role="tab"
             aria-selected={tab === 'email'}
             aria-controls="tab-email"

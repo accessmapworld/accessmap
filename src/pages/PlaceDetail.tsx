@@ -15,7 +15,9 @@ import AlertBanner from '../components/AlertBanner'
 import Modal from '../components/Modal'
 import ReportForm from '../components/ReportForm'
 import ReviewForm from '../components/ReviewForm'
-import { getPlace, getReviews, getAlerts, resolveAlert, getSpecs } from '../lib/data'
+import { getPlace, getSpecs, resolveAlert, subscribeAlerts, subscribeReviews } from '../lib/data'
+import SpeakButton from '../components/SpeakButton'
+import { Radio } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { scorePlace, hasProfile, beforeYouGo } from '../lib/compatibility'
 import MatchBadge from '../components/MatchBadge'
@@ -77,8 +79,7 @@ export default function PlaceDetail() {
     if (p) {
       setPlace(p)
       setOsmOnlyMode(false)
-      setReviews(await getReviews(id))
-      setAlerts(await getAlerts(id))
+      // reviews + alerts arrive via the live subscription below
       setSpecs(await getSpecs(id))
       setOsmLoading(true)
       fetchOsmDetails(p.lat, p.lng, ac.signal)
@@ -115,6 +116,24 @@ export default function PlaceDetail() {
     return () => { osmAbort.current?.abort() }
   }, [id])
 
+  // ── Live updates: reviews & alerts stream in real time ───────────
+  const prevAlertCount = useRef<number | null>(null)
+  const [liveMsg, setLiveMsg] = useState('')
+  useEffect(() => {
+    if (!id) return
+    const unsubA = subscribeAlerts(id, setAlerts)
+    const unsubR = subscribeReviews(id, setReviews)
+    return () => { unsubA(); unsubR() }
+  }, [id])
+
+  // Announce a freshly-arrived alert to screen readers (politely).
+  useEffect(() => {
+    if (prevAlertCount.current != null && alerts.length > prevAlertCount.current) {
+      setLiveMsg(`New accessibility alert: ${alerts[0].description}`)
+    }
+    prevAlertCount.current = alerts.length
+  }, [alerts])
+
   // Programmatic JSON-LD + SEO title for this venue (§6.3 — organic SEO moat)
   useEffect(() => {
     if (!place) return
@@ -148,7 +167,7 @@ export default function PlaceDetail() {
 
   async function onResolve(alertId: string) {
     await resolveAlert(alertId)
-    setAlerts(await getAlerts(id))
+    // the live subscription removes the resolved alert automatically
   }
 
   if (!place) return <Layout><p className="text-muted py-10 text-center">Loading…</p></Layout>
@@ -161,14 +180,41 @@ export default function PlaceDetail() {
   const communityPhotos = reviews.flatMap((r) => r.photos.map((url) => ({ url, verified: r.verified })))
   const bd = osmData?.breakdown
 
+  // Spoken summary for the "Read aloud" control.
+  const summaryParts: string[] = [place.name]
+  if (place.address) summaryParts.push(place.address)
+  if (avg != null) summaryParts.push(`Overall accessibility score ${avg.toFixed(1)} out of 10`)
+  if (!osmOnlyMode)
+    summaryParts.push(`Community scores out of 10 — mobility ${place.scores.mobility}, sensory ${place.scores.sensory}, hearing ${place.scores.hearing}, vision ${place.scores.vision}`)
+  if (alerts.length)
+    summaryParts.push(`${alerts.length} live alert${alerts.length > 1 ? 's' : ''}: ${alerts.map((a) => a.description).join('; ')}`)
+  if (reviews.length)
+    summaryParts.push(`${reviews.length} community review${reviews.length > 1 ? 's' : ''}. Most recent says: ${reviews[0].body}`)
+  const spokenSummary = summaryParts.join('. ') + '.'
+
   // Dominant photo: OSM first, then community
   const heroPhoto = osmData?.imageUrl ?? (communityPhotos[0]?.url ?? null)
 
   return (
     <Layout>
-      {alerts.map((a) => (
-        <div key={a.id} className="mb-3"><AlertBanner alert={a} onResolve={onResolve} /></div>
-      ))}
+      {/* Screen-reader-only live region: announces new alerts as they arrive */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only">{liveMsg}</div>
+
+      {alerts.length > 0 && (
+        <div className="mb-3 space-y-2">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-alert">
+            <span className="relative flex h-2 w-2" aria-hidden="true">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-alert opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-alert" />
+            </span>
+            <Radio size={12} aria-hidden="true" />
+            {alerts.length} live alert{alerts.length > 1 ? 's' : ''}
+          </p>
+          {alerts.map((a) => (
+            <AlertBanner key={a.id} alert={a} onResolve={onResolve} />
+          ))}
+        </div>
+      )}
 
       {/* ── Hero photo ─────────────────────────────────────────── */}
       {heroPhoto && (
@@ -569,6 +615,7 @@ export default function PlaceDetail() {
 
       {/* ── Actions ─────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-wrap gap-3">
+        <SpeakButton text={spokenSummary} label="Read summary" />
         {!osmOnlyMode && <button onClick={() => setShowReview(true)} className="btn-primary"><Star size={16} /> Write a review</button>}
         <button onClick={() => setShowSpecsForm(true)} className="btn-ghost"><CheckCircle2 size={16} /> Add specs</button>
         <button onClick={() => setShowReport(true)} className="btn-alert"><Flag size={16} /> Report issue</button>

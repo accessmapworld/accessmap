@@ -91,12 +91,29 @@ const ParticleCard = ({ children, className = '', style, particleCount = 10, glo
 export default function MagicBento({ glowColor = DEFAULT_GLOW, particleCount = 10, cards = DEFAULT_CARDS }) {
   const gridRef = useRef(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [reduceMotion, setReduceMotion] = useState(false)
   useEffect(() => { const c = () => setIsMobile(window.innerWidth <= MOBILE_BP); c(); window.addEventListener('resize', c); return () => window.removeEventListener('resize', c) }, [])
+
+  // Disable hover particles / tilt / magnetism when the user prefers reduced
+  // motion — via the OS setting or AccessMap's own accessibility toggles.
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const check = () => setReduceMotion(
+      mq.matches ||
+      document.documentElement.classList.contains('a11y-reduce-motion') ||
+      document.documentElement.classList.contains('a11y-mode'),
+    )
+    check()
+    mq.addEventListener('change', check)
+    const obs = new MutationObserver(check)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => { mq.removeEventListener('change', check); obs.disconnect() }
+  }, [])
 
   return (
     <div className="mb-grid" ref={gridRef}>
       {cards.map((card, i) => (
-        <ParticleCard key={i} className="mb-card mb-card--glow" style={{ '--glow-color': glowColor }} glowColor={glowColor} particleCount={particleCount} disableAnimations={isMobile}>
+        <ParticleCard key={i} className="mb-card mb-card--glow" style={{ '--glow-color': glowColor }} glowColor={glowColor} particleCount={particleCount} disableAnimations={isMobile || reduceMotion}>
           <div className="mb-card__header"><div className="mb-card__label">{card.label}</div></div>
           <div className="mb-card__content"><h3 className="mb-card__title">{card.title}</h3><p className="mb-card__desc">{card.description}</p></div>
         </ParticleCard>

@@ -1,7 +1,9 @@
 import { Suspense, lazy, useEffect } from 'react'
-import { Routes, Route, Link } from 'react-router-dom'
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useStore } from './store/useStore'
 import AccessibilityPanel from './components/AccessibilityPanel'
+import ErrorBoundary from './components/ErrorBoundary'
+import ConnectionStatus from './components/ConnectionStatus'
 import {
   HomeSkeleton, MapSkeleton, PlaceDetailSkeleton, ProfileSkeleton,
   RouteSkeleton, ReviewSkeleton, ReportSkeleton, ForBusinessSkeleton,
@@ -45,10 +47,12 @@ function NotFound() {
 
 export default function App() {
   const initAuth = useStore((s) => s.initAuth)
+  const location = useLocation()
   useEffect(() => { initAuth() }, [initAuth])
 
   return (
     <>
+      <ErrorBoundary resetKey={location.pathname}>
       <Routes>
         <Route path="/"               element={<S fallback={<HomeSkeleton />}><Home /></S>} />
         <Route path="/map"            element={<S fallback={<MapSkeleton />}><MapPage /></S>} />
@@ -68,7 +72,9 @@ export default function App() {
         <Route path="/security"       element={<S fallback={<TextPageSkeleton />}><Security /></S>} />
         <Route path="*"               element={<NotFound />} />
       </Routes>
+      </ErrorBoundary>
       <AccessibilityPanel />
+      <ConnectionStatus />
     </>
   )
 }

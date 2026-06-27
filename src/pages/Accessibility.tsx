@@ -11,8 +11,10 @@ const CONFORMANCE = [
   { area: 'Images', status: 'pass', detail: 'All informative images have descriptive alt text; decorative images have alt="".' },
   { area: 'Form labels', status: 'pass', detail: 'Every form control has an associated <label> or aria-label.' },
   { area: 'Interactive components', status: 'pass', detail: 'Buttons, links, and modals expose correct ARIA roles and states.' },
-  { area: 'Map (Leaflet)', status: 'partial', detail: 'The interactive map provides an accessible text summary and keyboard pan/zoom. Complex geospatial navigation remains a known limitation of web mapping.' },
-  { area: 'Motion', status: 'pass', detail: 'Animated elements respect prefers-reduced-motion.' },
+  { area: 'Map (Leaflet)', status: 'partial', detail: 'The interactive map provides a screen-reader place list, keyboard-focusable labelled markers, and live result announcements. Complex geospatial navigation remains a known limitation of web mapping.' },
+  { area: 'Motion', status: 'pass', detail: 'Animated elements respect prefers-reduced-motion — including WebGL (Aurora) and GSAP effects, which stop their animation loops, not just CSS transitions.' },
+  { area: 'Text to speech', status: 'pass', detail: 'Built-in read-aloud controls on place details and alerts, plus an optional "read aloud on focus" mode in the accessibility panel.' },
+  { area: 'Live updates', status: 'pass', detail: 'New reviews and alerts stream in real time and are announced to screen readers via aria-live regions.' },
 ]
 
 export default function AccessibilityStatement() {

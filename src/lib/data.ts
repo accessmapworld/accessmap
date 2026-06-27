@@ -1,11 +1,41 @@
 import { FIREBASE_ENABLED, db } from './firebase'
 import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where,
-  orderBy, serverTimestamp, Timestamp,
+  orderBy, serverTimestamp, Timestamp, onSnapshot,
 } from 'firebase/firestore'
 import type { Place, Review, Alert, AccessSpecs, Scores } from '../types'
 import { mockPlaces, mockReviews, mockAlerts } from './mockData'
 import { checkRate } from './rateLimit'
+
+/* ------------------------------------------------------------------ *
+ * Live updates (mock/local mode): a tiny pub/sub so the UI reflects
+ * new reviews, alerts and specs the instant they're written — and a
+ * `storage` listener so changes propagate live across browser tabs.
+ * In Firebase mode, Firestore's onSnapshot drives the same callbacks.
+ * ------------------------------------------------------------------ */
+type LocalListener = () => void
+const localListeners = new Set<LocalListener>()
+
+function emitLocal() {
+  localListeners.forEach((fn) => { try { fn() } catch { /* ignore */ } })
+}
+
+/** Subscribe to any local data mutation. Returns an unsubscribe fn. */
+export function subscribeLocal(fn: LocalListener): () => void {
+  localListeners.add(fn)
+  return () => { localListeners.delete(fn) }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === LS_KEY || e.key === LS_SPECS) {
+      // Another tab changed the data — reload our cache and notify.
+      local = loadLocal()
+      localSpecs = loadSpecs()
+      emitLocal()
+    }
+  })
+}
 
 /* ------------------------------------------------------------------ *
  * Local store: keeps the UI fully functional without a backend.
@@ -33,14 +63,32 @@ const uid = () => Math.random().toString(36).slice(2, 10)
 const toMs = (v: unknown): number =>
   v instanceof Timestamp ? v.toMillis() : typeof v === 'number' ? v : Date.now()
 
+/* Offline cache for live (Firebase) reads — last successful result is kept in
+ * localStorage so the map still renders when the network drops. */
+function cacheGet<T>(key: string): T | null {
+  try { const r = localStorage.getItem('am.cache.' + key); return r ? (JSON.parse(r) as T) : null } catch { return null }
+}
+function cacheSet<T>(key: string, value: T) {
+  try { localStorage.setItem('am.cache.' + key, JSON.stringify(value)) } catch { /* quota — ignore */ }
+}
+
 /* ----------------------------- Places ----------------------------- */
 export async function getPlaces(): Promise<Place[]> {
   if (!FIREBASE_ENABLED || !db) {
     // sponsored / self-listed businesses first
     return [...local.places, ...mockPlaces].sort((a, b) => Number(b.sponsored) - Number(a.sponsored))
   }
-  const snap = await getDocs(collection(db, 'places'))
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Place, 'id'>), lastUpdated: toMs(d.data().lastUpdated) }))
+  try {
+    const snap = await getDocs(collection(db, 'places'))
+    const places = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Place, 'id'>), lastUpdated: toMs(d.data().lastUpdated) }))
+    cacheSet('places', places)
+    return places
+  } catch (e) {
+    // Offline / network error — fall back to the last cached set.
+    const cached = cacheGet<Place[]>('places')
+    if (cached) return cached
+    throw e
+  }
 }
 
 export async function getPlace(id: string): Promise<Place | null> {
@@ -58,6 +106,7 @@ export async function addPlace(input: Omit<Place, 'id' | 'lastUpdated' | 'review
     const place: Place = { ...base, id: 'biz-' + uid() }
     local.places.unshift(place)
     saveLocal(local)
+    emitLocal()
     return place
   }
   const ref = await addDoc(collection(db, 'places'), { ...input, reviewCount: 0, lastUpdated: serverTimestamp() })
@@ -99,6 +148,7 @@ export async function addReview(input: Omit<Review, 'id' | 'createdAt' | 'status
     const review: Review = { ...payload, id: uid(), createdAt: Date.now() }
     local.reviews.unshift(review)
     saveLocal(local)
+    emitLocal()
     return review
   }
   const ref = await addDoc(collection(db, 'places', input.placeId, 'reviews'), {
@@ -155,6 +205,7 @@ export async function addAlert(input: Omit<Alert, 'id' | 'createdAt' | 'status'>
     const alert: Alert = { ...input, id: uid(), status: 'active', createdAt: Date.now() }
     local.alerts.unshift(alert)
     saveLocal(local)
+    emitLocal()
     return alert
   }
   const ref = await addDoc(collection(db, 'alerts'), {
@@ -167,6 +218,7 @@ export async function resolveAlert(id: string): Promise<void> {
   if (!FIREBASE_ENABLED || !db) {
     local.alerts = local.alerts.map((a) => (a.id === id ? { ...a, status: 'resolved', resolvedAt: Date.now() } : a))
     saveLocal(local)
+    emitLocal()
     return
   }
   await updateDoc(doc(db, 'alerts', id), { status: 'resolved', resolvedAt: serverTimestamp() })
@@ -193,8 +245,66 @@ export async function addSpecs(input: Omit<AccessSpecs, 'id' | 'contributedAt'>)
     const s: AccessSpecs = { ...input, id: uid(), contributedAt: Date.now() }
     localSpecs.unshift(s)
     saveSpecs(localSpecs)
+    emitLocal()
     return s
   }
   const ref = await addDoc(collection(db, 'places', input.placeId, 'specs'), { ...input, contributedAt: serverTimestamp() })
   return { ...input, id: ref.id, contributedAt: Date.now() }
+}
+
+/* --------------------------- Live feeds --------------------------- *
+ * subscribe* helpers push a fresh list to `cb` on every change. They
+ * use Firestore onSnapshot when live, or the local pub/sub otherwise.
+ * Each returns an unsubscribe function. The callback fires immediately
+ * with the current data so callers don't need a separate initial fetch.
+ * ------------------------------------------------------------------ */
+
+export function subscribeAlerts(
+  placeId: string | undefined,
+  cb: (alerts: Alert[]) => void,
+  onlyActive = true,
+): () => void {
+  let active = true
+
+  if (FIREBASE_ENABLED && db) {
+    const clauses = []
+    if (placeId) clauses.push(where('placeId', '==', placeId))
+    if (onlyActive) clauses.push(where('status', '==', 'active'))
+    const q = query(collection(db, 'alerts'), ...clauses)
+    return onSnapshot(q, (snap) => {
+      const list = snap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<Alert, 'id'>), createdAt: toMs(d.data().createdAt) }))
+        .sort((a, b) => b.createdAt - a.createdAt)
+      cb(list)
+    }, () => { /* swallow permission errors — UI keeps last value */ })
+  }
+
+  const run = () => { getAlerts(placeId, onlyActive).then((a) => { if (active) cb(a) }) }
+  run()
+  const unsub = subscribeLocal(run)
+  return () => { active = false; unsub() }
+}
+
+export function subscribeReviews(
+  placeId: string,
+  cb: (reviews: Review[]) => void,
+): () => void {
+  let active = true
+
+  if (FIREBASE_ENABLED && db) {
+    const q = query(collection(db, 'places', placeId, 'reviews'), orderBy('createdAt', 'desc'))
+    return onSnapshot(q, (snap) => {
+      const list = snap.docs.map((d) => ({
+        id: d.id, placeId,
+        ...(d.data() as Omit<Review, 'id' | 'placeId'>),
+        createdAt: toMs(d.data().createdAt),
+      }))
+      cb(list)
+    }, () => { /* swallow errors */ })
+  }
+
+  const run = () => { getReviews(placeId).then((r) => { if (active) cb(r) }) }
+  run()
+  const unsub = subscribeLocal(run)
+  return () => { active = false; unsub() }
 }

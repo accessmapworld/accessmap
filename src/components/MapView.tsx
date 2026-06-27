@@ -115,7 +115,14 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
     layer.clearLayers()
     places.forEach((p) => {
       const icon = p.sponsored ? SPONSOR_ICON : alertPlaceIds.has(p.id) ? ALERT_ICON : PLACE_ICON
-      const m = L.marker([p.lat, p.lng], { icon })
+      const avgScore = (p.scores.mobility + p.scores.sensory + p.scores.hearing + p.scores.vision) / 4
+      const m = L.marker([p.lat, p.lng], {
+        icon,
+        keyboard: true,          // focusable + Enter/Space opens the popup
+        riseOnHover: true,
+        title: p.name,           // native tooltip on hover
+        alt: `${p.name}, accessibility score ${avgScore.toFixed(1)} of 10${alertPlaceIds.has(p.id) ? ', active alert' : ''}`,
+      })
       m.bindTooltip(p.name, { direction: 'top', offset: [0, -30], className: 'am-tooltip' })
       const avg = (p.scores.mobility + p.scores.sensory + p.scores.hearing + p.scores.vision) / 4
       const avgColor = avg >= 7 ? '#1e8e3e' : avg >= 5 ? '#f29900' : '#ea4335'
@@ -132,7 +139,13 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
     layer.clearLayers()
     pois.forEach((p) => {
       const c = accessColor(p)
-      const m = L.marker([p.lat, p.lng], { icon: cachedPin(c) })
+      const m = L.marker([p.lat, p.lng], {
+        icon: cachedPin(c),
+        keyboard: true,
+        riseOnHover: true,
+        title: p.name,
+        alt: `${p.name}${p.accessScore != null ? `, accessibility score ${p.accessScore} of 10` : ', accessibility not rated'}`,
+      })
       const scoreHtml = p.accessScore != null
         ? `<span style="background:${c};color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600">♿ ${p.accessScore}/10</span>`
         : `<span style="background:#f3f4f6;color:#6b7280;border-radius:999px;padding:2px 9px;font-size:11px">Unrated</span>`

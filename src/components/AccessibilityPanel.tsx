@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Accessibility, X, Type, Contrast, BookOpen, Eye, Pause } from 'lucide-react'
+import { Accessibility, X, Type, Contrast, BookOpen, Eye, Pause, Volume2 } from 'lucide-react'
 import { useFocusTrap } from '../lib/useFocusTrap'
+import { speechSupported, setSpeakOnFocus, isSpeakOnFocus, speak } from '../lib/speech'
 
 type Settings = {
   large: boolean
@@ -27,7 +28,15 @@ const OPTIONS: { key: keyof Settings; label: string; desc: string; icon: typeof 
 export default function AccessibilityPanel() {
   const [open, setOpen] = useState(false)
   const [s, setS] = useState<Settings>(load)
+  const [speakFocus, setSpeakFocus] = useState(isSpeakOnFocus)
   const trapRef = useFocusTrap<HTMLDivElement>(open)
+
+  function toggleSpeakFocus() {
+    const next = !speakFocus
+    setSpeakFocus(next)
+    setSpeakOnFocus(next)
+    if (next) speak('Read aloud is on. Move through the page and items will be read to you.')
+  }
 
   useEffect(() => {
     if (!open) return
@@ -47,7 +56,7 @@ export default function AccessibilityPanel() {
   }, [s])
 
   const toggle = (k: keyof Settings) => setS((p) => ({ ...p, [k]: !p[k] }))
-  const anyOn = Object.values(s).some(Boolean)
+  const anyOn = Object.values(s).some(Boolean) || speakFocus
 
   return (
     <>
@@ -104,8 +113,38 @@ export default function AccessibilityPanel() {
               })}
             </div>
 
+            {/* Text-to-speech — only shown when the browser supports it */}
+            {speechSupported && (
+              <div className="mt-4 border-t border-border pt-4">
+                <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-muted">Text to speech</p>
+                <button
+                  onClick={toggleSpeakFocus}
+                  aria-pressed={speakFocus}
+                  className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                    speakFocus ? 'border-primary bg-primary/5' : 'border-border bg-bg hover:bg-card'
+                  }`}
+                >
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${speakFocus ? 'bg-primary text-white' : 'bg-card text-muted'}`}>
+                    <Volume2 size={18} />
+                  </span>
+                  <span className="flex-1">
+                    <span className="block font-medium">Read aloud on focus</span>
+                    <span className="block text-xs text-muted">Speak buttons, links and headings as you move through the page</span>
+                  </span>
+                  <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${speakFocus ? 'bg-primary' : 'bg-border'}`}>
+                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${speakFocus ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </span>
+                </button>
+              </div>
+            )}
+
             {anyOn && (
-              <button onClick={() => setS(DEFAULTS)} className="mt-4 w-full text-sm text-muted hover:text-ink">Reset all</button>
+              <button
+                onClick={() => { setS(DEFAULTS); if (speakFocus) toggleSpeakFocus() }}
+                className="mt-4 w-full text-sm text-muted hover:text-ink"
+              >
+                Reset all
+              </button>
             )}
           </div>
         </div>

@@ -103,7 +103,7 @@ export default function Navbar() {
             {user ? (
               <NavLink to="/profile" className="ml-2" aria-label={`Your profile — ${user.displayName}`}>
                 {user.photoURL ? (
-                  <img src={user.photoURL} alt="" className="h-8 w-8 rounded-full border-2 border-[#e8eaed]" />
+                  <img src={user.photoURL} alt={`${user.displayName}'s profile`} className="h-8 w-8 rounded-full border-2 border-[#e8eaed]" />
                 ) : (
                   <span className="flex h-8 w-8 items-center justify-center rounded-full border border-[#dadce0] bg-[#f8f9fa] text-[#5f6368] hover:bg-[#f1f3f4]">
                     <User size={16} aria-hidden="true" />

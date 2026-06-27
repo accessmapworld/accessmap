@@ -4,19 +4,20 @@ import {
   Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
   MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
   Navigation2, ChevronRight, ChevronDown, Car, ArrowUpDown, Zap, Clock, Info, CheckCircle2,
-  Eye, Ear, Brain,
+  Eye, Ear, Brain, Mic,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import BottomNav from '../components/BottomNav'
 import BrandPin from '../components/MapPin'
 import MapView from '../components/MapView'
 import { scoreColor } from '../components/ScoreRing'
-import { getPlaces, getAlerts } from '../lib/data'
+import { getPlaces, subscribeAlerts } from '../lib/data'
 import { searchPlaces, type GeoResult } from '../lib/nominatim'
 import { CATEGORIES, categoryColor, nearbyByCategory, haversineKm, type Poi, type CategoryKey } from '../lib/overpass'
 import { batchWikiImages } from '../lib/wikipedia'
 import { googleMapsTo } from '../lib/maps'
 import { useFocusTrap } from '../lib/useFocusTrap'
+import { useVoiceSearch } from '../lib/useVoiceSearch'
 import { scorePlace, hasProfile } from '../lib/compatibility'
 import { useStore } from '../store/useStore'
 import type { Place, Alert, Dimension } from '../types'
@@ -57,6 +58,8 @@ export default function MapPage() {
   const [q, setQ] = useState('')
   const [results, setResults] = useState<GeoResult[]>([])
   const [searching, setSearching] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const voice = useVoiceSearch((text) => { setQ(text); searchInputRef.current?.focus() })
 
   const [activeCat, setActiveCat] = useState<CategoryKey | null>(null)
   const [pois, setPois] = useState<Poi[]>([])
@@ -110,13 +113,29 @@ export default function MapPage() {
 
   useEffect(() => {
     getPlaces().then(setPlaces)
-    getAlerts().then(setAlerts)
+    // Live alerts stream in and keep the map pins / list current.
+    const unsubAlerts = subscribeAlerts(undefined, setAlerts)
     // Silent startup — never show errors, just try to centre map
     locateSilent()
+    return () => unsubAlerts()
   }, [])
 
   useEffect(() => () => {
     if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
+  }, [])
+
+  // Keyboard shortcut: "/" focuses the search box (unless already typing).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
+      const el = document.activeElement
+      const typing = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el as HTMLElement)?.isContentEditable
+      if (typing) return
+      e.preventDefault()
+      searchInputRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   function showToast(msg: string, type: 'info' | 'error' = 'info') {
@@ -347,7 +366,13 @@ export default function MapPage() {
       <Navbar />
 
       {/* Map fills everything below nav */}
-      <div id="main-content" className="absolute inset-0" style={{ paddingTop: 'var(--app-header-h, 64px)' }}>
+      <div
+        id="main-content"
+        className="absolute inset-0"
+        style={{ paddingTop: 'var(--app-header-h, 64px)' }}
+        role="region"
+        aria-label="Interactive map of accessible places. A text list of places follows below for screen readers."
+      >
         <MapView
           places={visiblePlaces}
           pois={sortedPois}
@@ -358,6 +383,38 @@ export default function MapPage() {
           onSelect={(p) => setFocus({ lat: p.lat, lng: p.lng, zoom: 16 })}
         />
       </div>
+
+      {/* Screen-reader status: announces search progress / result counts */}
+      <div className="sr-only" role="status" aria-live="polite">
+        {panelOpen
+          ? (loadingPois ? 'Searching for nearby places…' : `${sortedPois.length} ${activeCatMeta?.label ?? 'places'} found nearby`)
+          : ''}
+      </div>
+
+      {/* Screen-reader-accessible alternative to the visual map markers.
+          Leaflet pins aren't reachable by assistive tech, so we expose the
+          same places as a navigable list of links. */}
+      <nav className="sr-only" aria-label="Accessible places shown on the map">
+        <h2>Places on the map ({visiblePlaces.length})</h2>
+        {visiblePlaces.length === 0 ? (
+          <p>No places match the current filters. Adjust filters or move the map.</p>
+        ) : (
+          <ul>
+            {visiblePlaces.map((p) => {
+              const avg = (p.scores.mobility + p.scores.sensory + p.scores.hearing + p.scores.vision) / 4
+              return (
+                <li key={p.id}>
+                  <Link to={`/place/${p.id}`}>
+                    {p.name} — accessibility score {avg.toFixed(1)} out of 10
+                    {alertIds.has(p.id) ? ', has an active accessibility alert' : ''}
+                    {p.sponsored ? ', sponsored listing' : ''}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </nav>
 
       {/* OSM attribution */}
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
@@ -381,16 +438,32 @@ export default function MapPage() {
           >
             <Search size={17} className="shrink-0 text-[#9aa0a6]" aria-hidden="true" />
             <input
+              ref={searchInputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search places, buildings, addresses…"
-              aria-label="Search for accessible places"
+              aria-label="Search for accessible places. Press slash to focus, or use the microphone for voice search."
               aria-autocomplete="list"
               aria-controls="search-results"
               aria-expanded={results.length > 0}
               className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-[#202124] outline-none placeholder:text-[#9aa0a6]"
             />
             {searching && <Loader2 size={15} className="shrink-0 animate-spin text-primary" aria-label="Searching…" />}
+            {voice.supported && (
+              <button
+                onClick={voice.toggle}
+                aria-label={voice.listening ? 'Stop voice search' : 'Search by voice'}
+                aria-pressed={voice.listening}
+                className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+                  voice.listening ? 'bg-alert/10 text-alert' : 'text-[#9aa0a6] hover:bg-[#f1f3f4] hover:text-primary'
+                }`}
+              >
+                {voice.listening && (
+                  <span className="absolute inline-flex h-6 w-6 animate-ping rounded-full bg-alert/40" aria-hidden="true" />
+                )}
+                <Mic size={17} aria-hidden="true" />
+              </button>
+            )}
             {q && !searching && (
               <button
                 onClick={() => { setQ(''); setResults([]) }}

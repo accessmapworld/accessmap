@@ -80,7 +80,19 @@ export default function Aurora(props) {
     const mesh = new Mesh(gl, { geometry, program })
     ctn.appendChild(gl.canvas)
     let animateId = 0
+
+    // Respect reduced-motion (OS setting or AccessMap's own toggles): render
+    // a single static frame instead of an endless requestAnimationFrame loop.
+    const reduceMotion = () =>
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ||
+      document.documentElement.classList.contains('a11y-reduce-motion') ||
+      document.documentElement.classList.contains('a11y-mode')
+
     const update = t => {
+      if (reduceMotion()) {
+        renderer.render({ scene: mesh })
+        return
+      }
       animateId = requestAnimationFrame(update)
       const { time = t * 0.01, speed = 1.0 } = propsRef.current
       program.uniforms.uTime.value = time * speed * 0.1
