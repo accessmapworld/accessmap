@@ -107,10 +107,9 @@ function MapView({ places, pois = [], alertPlaceIds, userLocation, focus, onSele
       attributionControl: false,
     }).setView([39.5, -20], 3)
 
-    // CartoDB Voyager — clean, modern, no API key required
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      subdomains: 'abcd',
+      subdomains: 'abc',
     }).addTo(map)
 
     // Zoom control bottom-right
@@ -118,7 +117,7 @@ function MapView({ places, pois = [], alertPlaceIds, userLocation, focus, onSele
 
     // Minimal attribution bottom-right
     L.control.attribution({ position: 'bottomright', prefix: false })
-      .addAttribution('© <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors © <a href="https://carto.com/attributions">CARTO</a>')
+      .addAttribution('© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors')
       .addTo(map)
 
     placeLayer.current = L.layerGroup().addTo(map)
