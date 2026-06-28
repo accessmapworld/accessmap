@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { Loader2, AlertTriangle, Navigation, ExternalLink, LocateFixed, X, Accessibility } from 'lucide-react'
 import Layout from '../components/Layout'
