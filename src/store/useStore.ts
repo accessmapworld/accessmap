@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getAuthInstance, FIREBASE_ENABLED } from '../lib/firebase'
+import { getAuthInstance, getDb, FIREBASE_ENABLED } from '../lib/firebase'
 import type { AppUser, FilterKey, NeedsProfile } from '../types'
 import { DEFAULT_PROFILE } from '../lib/compatibility'
 
@@ -76,15 +76,24 @@ export const useStore = create<AppState>((set, get) => ({
       const auth = await getAuthInstance()
       if (!auth) { set({ authReady: true }); return }
       const { onAuthStateChanged } = await import('firebase/auth')
-      onAuthStateChanged(auth, (fbUser) => {
+      onAuthStateChanged(auth, async (fbUser) => {
         if (fbUser) {
+          let role: 'admin' | 'user' = 'user'
+          try {
+            const db = await getDb()
+            if (db) {
+              const { doc, getDoc } = await import('firebase/firestore')
+              const snap = await getDoc(doc(db, 'admins', fbUser.uid))
+              if (snap.exists()) role = 'admin'
+            }
+          } catch { /* non-admin or offline */ }
           set({
             user: {
               uid: fbUser.uid,
               displayName: fbUser.displayName || fbUser.email || 'User',
               email: fbUser.email || '',
               photoURL: fbUser.photoURL || undefined,
-              role: 'user',
+              role,
               premium: false,
               savedPlaces: [],
               reviewCount: 0,

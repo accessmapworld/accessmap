@@ -2,402 +2,213 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design tokens ───────────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
+  --radius: 1rem;
 }
 
-html, body, #root {
-  height: 100%;
-}
+html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  background: #f1f3f4;
-  color: #202124;
+  background: #f8f9fb;
+  color: #0f1117;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  letter-spacing: -0.011em;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.012em;
+  font-feature-settings: 'cv11', 'ss01';
 }
 
-h1, h2, h3 {
+h1, h2, h3, h4 {
   font-family: 'Inter', system-ui, sans-serif;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
 
-/* ── Global keyboard focus ring (WCAG 2.4.7) ─────────────────────────
-   Applies to every interactive element, including those that set
-   `outline-none`. Mouse clicks don't trigger :focus-visible, so this
-   never shows on pointer interaction — only keyboard/AT navigation. */
+p { line-height: 1.65; }
+
+/* ── Focus ring (WCAG 2.4.7) ─────────────────────────────────────────────── */
 :focus-visible {
   outline: 2px solid #1a73e8 !important;
   outline-offset: 2px !important;
-  border-radius: 4px;
+  border-radius: 6px;
 }
-/* Inputs/textareas keep their soft inner ring AND get the outline */
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
+input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline-offset: 1px !important;
 }
 
-/* Bright Google-Maps-style tiles (no dark filter) */
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+/* ── Leaflet map ─────────────────────────────────────────────────────────── */
 .leaflet-container {
   background: #e8eaed;
   font-family: 'Inter', sans-serif;
 }
 .leaflet-control-attribution {
-  background: rgba(255,255,255,0.8) !important;
-  backdrop-filter: blur(4px);
+  background: rgba(255,255,255,0.85) !important;
+  backdrop-filter: blur(8px);
   color: #9ca3af !important;
   font-size: 10px !important;
-  border-radius: 6px 0 0 0 !important;
-  padding: 2px 6px !important;
+  border-radius: 8px 0 0 0 !important;
+  padding: 3px 8px !important;
 }
 .leaflet-control-attribution a { color: #6b7280 !important; }
 .leaflet-bar {
   border: none !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12) !important;
-  border-radius: 10px !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06) !important;
+  border-radius: 12px !important;
   overflow: hidden;
 }
 .leaflet-bar a {
   background: #fff !important;
   color: #374151 !important;
   border-color: #f3f4f6 !important;
-  width: 34px !important;
-  height: 34px !important;
-  line-height: 34px !important;
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
   font-size: 16px !important;
+  transition: background 0.15s;
 }
 .leaflet-bar a:hover { background: #f9fafb !important; color: #111827 !important; }
 .leaflet-popup-content-wrapper {
-  border-radius: 14px !important;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.13), 0 1px 4px rgba(0,0,0,0.08) !important;
-  border: none !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06) !important;
+  border: 1px solid rgba(0,0,0,0.06) !important;
   padding: 0 !important;
 }
 .leaflet-popup-content { margin: 14px 16px !important; font-family: 'Inter', sans-serif; }
 .leaflet-popup-tip { background: #fff !important; }
 .am-tooltip {
-  background: rgba(17,24,39,0.85) !important;
-  backdrop-filter: blur(4px);
+  background: rgba(15,17,23,0.88) !important;
+  backdrop-filter: blur(8px);
   color: #fff !important;
   border: none !important;
   border-radius: 8px !important;
   font-size: 12px !important;
   font-weight: 500 !important;
-  padding: 4px 10px !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+  padding: 5px 10px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25) !important;
 }
 .am-tooltip::before { display: none !important; }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #dadce0; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #bdc1c6; }
-
-/* Accessibility panel modes (toggled on <html>) */
-html.a11y-large { font-size: 112.5%; }
-html.a11y-contrast body { color: #000; }
-html.a11y-contrast .text-muted { color: #2a2f3a !important; }
-html.a11y-contrast .border-border { border-color: #9aa0a6 !important; }
-html.a11y-readable body,
-html.a11y-readable h1,
-html.a11y-readable h2,
-html.a11y-readable h3 { font-family: 'Atkinson Hyperlegible', 'Inter', sans-serif; }
-html.a11y-grey { filter: grayscale(1); }
-html.a11y-reduce-motion *,
-html.a11y-reduce-motion *::before,
-html.a11y-reduce-motion *::after {
-  animation: none !important;
-  transition: none !important;
-  scroll-behavior: auto !important;
-}
-
+/* ── Component layer ─────────────────────────────────────────────────────── */
 @layer components {
   .card {
-    @apply rounded-2xl border border-[#e8eaed] bg-white;
-    box-shadow: 0 1px 3px rgba(60,64,67,0.08), 0 4px 16px rgba(60,64,67,0.06);
+    @apply rounded-2xl border border-border bg-white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
   }
+  .card:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.08);
+  }
+
   .input {
-    @apply w-full rounded-xl border border-border bg-card px-4 py-2.5 text-ink
-      placeholder:text-muted outline-none transition-[border-color,box-shadow] duration-150
-      focus:border-primary focus:shadow-[0_0_0_3px_rgba(26,115,232,0.15)];
+    @apply w-full rounded-xl border border-border bg-white px-4 py-2.5 text-sm text-ink
+      placeholder:text-muted outline-none transition-all duration-150
+      focus:border-primary focus:shadow-[0_0_0_3px_rgba(26,115,232,0.12)];
   }
+
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2.5
-      font-medium transition-[transform,background-color,box-shadow] duration-150
-      active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5
+      text-sm font-semibold transition-all duration-150 active:scale-[0.97]
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2;
   }
   .btn-primary {
-    @apply btn bg-primary text-white hover:shadow-[0_2px_8px_rgba(26,115,232,0.45)];
+    @apply btn bg-primary text-white hover:bg-[#1557b0] hover:shadow-[0_4px_12px_rgba(26,115,232,0.35)];
   }
   .btn-ghost {
-    @apply btn border border-border bg-card text-ink hover:bg-bg hover:shadow-md;
+    @apply btn border border-border bg-white text-ink hover:bg-surface hover:border-[#d1d5db] hover:shadow-sm;
   }
   .btn-alert {
-    @apply btn bg-alert text-white hover:shadow-[0_2px_8px_rgba(234,67,53,0.45)];
+    @apply btn bg-alert text-white hover:bg-[#c5221f] hover:shadow-[0_4px_12px_rgba(234,67,53,0.35)];
   }
   .gmaps-btn {
-    @apply btn border border-border bg-card text-ink hover:bg-bg hover:shadow-md;
+    @apply btn border border-border bg-white text-ink hover:bg-surface hover:shadow-sm;
   }
+
   .label {
-    @apply font-mono text-xs uppercase tracking-widest text-muted;
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-muted;
   }
+
   .chip {
-    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card
-      px-3.5 py-2 text-sm font-medium text-ink shadow-lift transition-[background-color,color,box-shadow] duration-150
-      hover:bg-bg;
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-white
+      px-3.5 py-1.5 text-sm font-medium text-ink shadow-sm transition-all duration-150
+      hover:bg-surface hover:border-[#d1d5db];
   }
   .chip-active {
-    @apply border-primary bg-primary text-white hover:bg-primary;
+    @apply border-primary bg-primary text-white shadow-[0_2px_8px_rgba(26,115,232,0.3)] hover:bg-[#1557b0] hover:border-[#1557b0];
   }
+
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full border border-[#dadce0] bg-white px-2.5 py-1 text-[11px] font-medium text-[#5f6368];
+    @apply inline-flex items-center gap-1 rounded-full border border-border bg-white px-2.5 py-0.5 text-xs font-medium text-muted;
   }
   .badge-green {
-    @apply inline-flex items-center gap-1 rounded-full border border-[#1e8e3e]/20 bg-[#e6f4ea] px-2.5 py-1 text-[11px] font-medium text-[#1a7337];
+    @apply inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700;
   }
   .badge-red {
-    @apply inline-flex items-center gap-1 rounded-full border border-[#c5221f]/20 bg-[#fce8e6] px-2.5 py-1 text-[11px] font-medium text-[#b31412];
+    @apply inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700;
   }
 }
 
+/* ── Animations ──────────────────────────────────────────────────────────── */
 @keyframes pageIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes pinDrop {
-  from { opacity: 0; transform: translateY(-12px) scale(0.85); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-.animate-page-in {
-  animation: pageIn 280ms ease-out both;
-}
+.animate-page-in { animation: pageIn 260ms ease-out both; }
 
-/* ─── Reduced motion (always respect the OS setting) ─────────────── */
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
-/* ─── Accessibility Mode ───────────────────────────────────────────── */
-
-/* Kill all animation/transition immediately */
-html.a11y-mode *,
-html.a11y-mode *::before,
-html.a11y-mode *::after {
+/* ── Accessibility mode ──────────────────────────────────────────────────── */
+html.a11y-mode *, html.a11y-mode *::before, html.a11y-mode *::after {
   animation-duration: 0.001ms !important;
-  animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
-  scroll-behavior: auto !important;
 }
-
-/* High-contrast colour tokens — all text passes WCAG AA (4.5:1 minimum) */
-html.a11y-mode {
-  --color-ink:     #0a0a0a;   /* near-black — 19:1 on white */
-  --color-muted:   #333333;   /* dark grey — 10:1 on white */
-  --color-bg:      #f8f8f8;
-  --color-card:    #ffffff;
-  --color-border:  #595959;   /* visible border — 7:1 on white */
-  --color-primary: #0057a8;   /* WCAG AA on white (5.9:1) */
-  --color-alert:   #b91c1c;   /* WCAG AA red on white */
-}
-
-/* Larger base font, generous line-height, slight letter-spacing for readability */
-html.a11y-mode body {
-  font-size: 18px !important;
-  line-height: 1.7 !important;
-  letter-spacing: 0.01em !important;
-  word-spacing: 0.05em !important;
-}
-
-/* Scale up all headings so hierarchy is obvious */
+html.a11y-mode body { font-size: 18px !important; line-height: 1.7 !important; }
 html.a11y-mode h1 { font-size: 2rem !important; }
 html.a11y-mode h2 { font-size: 1.5rem !important; }
 html.a11y-mode h3 { font-size: 1.2rem !important; }
-
-/* Body text, paragraphs, spans — minimum 1rem */
-html.a11y-mode p,
-html.a11y-mode li,
-html.a11y-mode td,
-html.a11y-mode th,
-html.a11y-mode label,
-html.a11y-mode .card p,
-html.a11y-mode .card span {
-  font-size: 1rem !important;
-  line-height: 1.7 !important;
-}
-
-/* Labels / monospace tags — make them legible, not tiny */
-html.a11y-mode .label {
-  font-size: 0.8rem !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.06em !important;
-}
-
-/* ── Focus rings ─────────────────────────────────────────────────── */
-/* Thick, high-contrast ring on EVERY focusable element, always */
 html.a11y-mode :focus-visible {
   outline: 3px solid #0057a8 !important;
   outline-offset: 4px !important;
-  border-radius: 4px !important;
-  box-shadow: 0 0 0 6px rgba(0, 87, 168, 0.18) !important;
+  box-shadow: 0 0 0 6px rgba(0,87,168,0.18) !important;
 }
-
-/* ── Tap targets ─────────────────────────────────────────────────── */
-/* Buttons get 48×48 minimum (WCAG 2.5.8 — 24px recommended, 44px practical) */
-html.a11y-mode button,
-html.a11y-mode [role="button"] {
+html.a11y-mode button, html.a11y-mode [role="button"] {
   min-height: 48px !important;
-  min-width: 48px !important;
-  padding-left: 1rem !important;
-  padding-right: 1rem !important;
   font-size: 1rem !important;
   font-weight: 600 !important;
 }
+html.a11y-mode .btn-primary { background-color: #0057a8 !important; color: #fff !important; }
+html.a11y-mode .btn-ghost   { border-color: #595959 !important; color: #0a0a0a !important; }
+html.a11y-mode .btn-alert   { background-color: #b91c1c !important; color: #fff !important; }
+html.a11y-mode .card        { border-width: 2px !important; border-color: #595959 !important; box-shadow: none !important; }
+html.a11y-mode .leaflet-bar a { width: 48px !important; height: 48px !important; line-height: 48px !important; font-size: 22px !important; }
 
-/* Nav links get larger tap target without breaking layout */
-html.a11y-mode nav a {
-  min-height: 48px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  padding: 0 0.75rem !important;
-  font-size: 1rem !important;
-  font-weight: 600 !important;
-}
-
-/* ── Links ───────────────────────────────────────────────────────── */
-/* All links must be visually distinct — underlined, not just colour */
-html.a11y-mode a:not(.btn):not(.btn-primary):not(.btn-ghost):not(.btn-alert):not(.gmaps-btn):not(.chip):not(.skip-nav):not([class*="leaflet"]) {
-  text-decoration: underline !important;
-  text-underline-offset: 3px !important;
-  text-decoration-thickness: 2px !important;
-}
-
-/* ── Cards & borders ─────────────────────────────────────────────── */
-html.a11y-mode .card {
-  border-width: 2px !important;
-  border-color: #595959 !important;
-  box-shadow: none !important;   /* shadows are a cue, not a crutch in a11y mode */
-}
-
-/* ── Inputs ──────────────────────────────────────────────────────── */
-html.a11y-mode input,
-html.a11y-mode textarea,
-html.a11y-mode select {
-  font-size: 1.05rem !important;
-  line-height: 1.6 !important;
-  padding: 0.75rem 1rem !important;
-  border-width: 2px !important;
-  border-color: #595959 !important;
-}
-
-/* ── Chips / filter pills ────────────────────────────────────────── */
-html.a11y-mode .chip {
-  font-size: 1rem !important;
-  font-weight: 600 !important;
-  padding: 0.6rem 1.1rem !important;
-  border-width: 2px !important;
-  min-height: 44px !important;
-}
-
-/* ── Buttons (named classes) ─────────────────────────────────────── */
-html.a11y-mode .btn-primary,
-html.a11y-mode .btn-ghost,
-html.a11y-mode .btn-alert,
-html.a11y-mode .gmaps-btn {
-  font-size: 1rem !important;
-  font-weight: 700 !important;
-  padding: 0.75rem 1.25rem !important;
-  min-height: 48px !important;
-  border-width: 2px !important;
-  border-radius: 0.75rem !important;
-  letter-spacing: 0.01em !important;
-}
-
-/* btn-primary text must always be pure white on #0057a8 (5.9:1) */
-html.a11y-mode .btn-primary {
-  background-color: #0057a8 !important;
-  color: #ffffff !important;
-}
-
-/* btn-ghost gets a visible 2px border */
-html.a11y-mode .btn-ghost {
-  border-color: #595959 !important;
-  color: #0a0a0a !important;
-  background-color: #ffffff !important;
-}
-
-/* btn-alert: darker red for contrast */
-html.a11y-mode .btn-alert {
-  background-color: #b91c1c !important;
-  color: #ffffff !important;
-}
-
-/* ── Map controls ────────────────────────────────────────────────── */
-html.a11y-mode .leaflet-bar a {
-  width: 48px !important;
-  height: 48px !important;
-  line-height: 48px !important;
-  font-size: 22px !important;
-  font-weight: 700 !important;
-  color: #0a0a0a !important;
-}
-html.a11y-mode .leaflet-popup-content {
-  font-size: 17px !important;
-  line-height: 1.65 !important;
-}
-html.a11y-mode .leaflet-popup-content-wrapper {
-  border: 2px solid #595959 !important;
-  box-shadow: none !important;
-}
-
-/* ── Modals / dialogs ────────────────────────────────────────────── */
-html.a11y-mode [role="dialog"] > div {
-  border: 3px solid #595959 !important;
-}
-
-/* ── Score rings / badges ────────────────────────────────────────── */
-html.a11y-mode svg text {
-  font-size: 1em !important;
-  font-weight: 700 !important;
-}
-
-/* ── Hide purely decorative motion (gradients, blurs) ────────────── */
-html.a11y-mode [style*="backdrop-filter"] {
-  backdrop-filter: none !important;
-}
-html.a11y-mode [class*="blur"] {
-  filter: none !important;
-}
-
-/* Skip-to-content link (hidden by default, shown on focus) */
+/* ── Skip nav ────────────────────────────────────────────────────────────── */
 .skip-nav {
   position: absolute;
   top: -9999px;
   left: 1rem;
   z-index: 9999;
-  padding: 0.75rem 1.25rem;
+  padding: 0.75rem 1.5rem;
   background: #005fa3;
   color: #fff;
   font-weight: 700;
-  border-radius: 0 0 8px 8px;
+  border-radius: 0 0 10px 10px;
   text-decoration: none;
+  font-size: 0.95rem;
 }
-.skip-nav:focus {
-  top: 0;
-}
-
-/* Easy-mode map: larger popup text */
-html.easy-mode .leaflet-popup-content {
-  font-size: 16px !important;
-  line-height: 1.6 !important;
-}
-html.easy-mode .leaflet-bar a {
-  width: 44px !important;
-  height: 44px !important;
-  line-height: 44px !important;
-  font-size: 20px !important;
-}
+.skip-nav:focus { top: 0; }

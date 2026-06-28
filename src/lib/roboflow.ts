@@ -22,8 +22,14 @@ const FEATURE_MAP: Record<string, VerifyResult['detectedFeatures'][number]> = {
 export async function verifyAccessibilityPhoto(imageUrl: string): Promise<VerifyResult> {
   if (!API_KEY) return mockVerify(imageUrl)
   try {
-    const url = `https://detect.roboflow.com/${MODEL}?api_key=${API_KEY}&image=${encodeURIComponent(imageUrl)}`
-    const res = await fetch(url, { method: 'POST' })
+    // Strip the data:image/...;base64, prefix — Roboflow expects raw base64 in the POST body
+    const base64 = imageUrl.includes(',') ? imageUrl.split(',')[1] : imageUrl
+    const url = `https://detect.roboflow.com/${MODEL}?api_key=${API_KEY}`
+    const res = await fetch(url, {
+      method: 'POST',
+      body: base64,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    })
     if (!res.ok) return mockVerify(imageUrl)
     const data = await res.json()
     const preds: Array<{ class: string; confidence: number }> = data.predictions ?? []

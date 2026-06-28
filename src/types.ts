@@ -31,6 +31,7 @@ export interface Place {
 export interface AccessSpecs {
   id: string
   placeId: string
+  userId: string               // uid for ownership checks
   contributedBy: string        // display name
   contributedAt: number
   // entrances

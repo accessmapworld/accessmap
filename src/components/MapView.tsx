@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import type { Place } from '../types'
 import { type Poi } from '../lib/overpass'
 import { scoreColor } from './ScoreRing'
+import type { TransitLine, TransitStation, WalkingPath } from '../lib/transit'
 
 const accessColor = (p: Poi) => (p.accessScore != null ? scoreColor(p.accessScore) : '#9aa0a6')
 
@@ -16,6 +17,9 @@ interface Props {
   onSelect?: (place: Place) => void
   onCenterChange?: (lat: number, lng: number) => void
   className?: string
+  transitLines?: TransitLine[]
+  transitStations?: TransitStation[]
+  walkingPaths?: WalkingPath[]
 }
 
 function pin(color: string, size = 28) {
@@ -69,11 +73,29 @@ function popupHtml(
   </div>`
 }
 
-export default function MapView({ places, pois = [], alertPlaceIds, userLocation, focus, onSelect, onCenterChange, className }: Props) {
+const STATION_ICONS: Record<string, string> = {
+  train: '🚆',
+  subway: '🚇',
+  tram: '🚊',
+  bus: '🚌',
+}
+
+function stationIcon(type: TransitStation['type']) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:26px;height:26px;border-radius:50%;background:#1a73e8;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:13px">${STATION_ICONS[type] ?? '🚆'}</div>`,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+  })
+}
+
+function MapView({ places, pois = [], alertPlaceIds, userLocation, focus, onSelect, onCenterChange, className, transitLines = [], transitStations = [], walkingPaths = [] }: Props) {
   const elRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const placeLayer = useRef<L.LayerGroup | null>(null)
   const poiLayer = useRef<L.LayerGroup | null>(null)
+  const transitLayer = useRef<L.LayerGroup | null>(null)
+  const walkLayer = useRef<L.LayerGroup | null>(null)
   const userMarker = useRef<L.Marker | null>(null)
   const onCenterRef = useRef(onCenterChange)
   onCenterRef.current = onCenterChange
@@ -101,6 +123,8 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
 
     placeLayer.current = L.layerGroup().addTo(map)
     poiLayer.current = L.layerGroup().addTo(map)
+    transitLayer.current = L.layerGroup().addTo(map)
+    walkLayer.current = L.layerGroup().addTo(map)
     mapRef.current = map
     const emit = () => { const c = map.getCenter(); onCenterRef.current?.(c.lat, c.lng) }
     map.on('moveend', emit)
@@ -176,5 +200,49 @@ export default function MapView({ places, pois = [], alertPlaceIds, userLocation
     if (focus && mapRef.current) mapRef.current.flyTo([focus.lat, focus.lng], focus.zoom ?? 15, { duration: 0.8 })
   }, [focus])
 
+  useEffect(() => {
+    const layer = transitLayer.current
+    if (!layer) return
+    layer.clearLayers()
+    transitLines.forEach(line => {
+      L.polyline(line.coords, { color: line.color, weight: 3, opacity: 0.85 })
+        .bindTooltip(line.name, { sticky: true })
+        .addTo(layer)
+    })
+    transitStations.forEach(st => {
+      L.marker([st.lat, st.lng], { icon: stationIcon(st.type) })
+        .bindPopup(`<div style="font-family:system-ui;min-width:160px">
+          <p style="margin:0;font-size:14px;font-weight:600">${st.name}</p>
+          <p style="margin:4px 0 0;font-size:12px;color:#6b7280;text-transform:capitalize">${st.type} station</p>
+          ${st.wheelchair ? `<p style="margin:4px 0 0;font-size:12px">♿ ${st.wheelchair === 'yes' ? 'Wheelchair accessible' : st.wheelchair === 'limited' ? 'Limited access' : 'Not accessible'}</p>` : ''}
+        </div>`)
+        .addTo(layer)
+    })
+  }, [transitLines, transitStations])
+
+  useEffect(() => {
+    const layer = walkLayer.current
+    if (!layer) return
+    layer.clearLayers()
+    walkingPaths.forEach(path => {
+      const isSteps = path.highway === 'steps'
+      L.polyline(path.coords, {
+        color: isSteps ? '#f59e0b' : '#16a34a',
+        weight: isSteps ? 2 : 2.5,
+        opacity: 0.75,
+        dashArray: isSteps ? '4,4' : undefined,
+      })
+        .bindTooltip(
+          (isSteps ? 'Steps' : 'Walking path') +
+          (path.surface ? ` · ${path.surface}` : '') +
+          (path.lit ? ' · Lit' : ''),
+          { sticky: true },
+        )
+        .addTo(layer)
+    })
+  }, [walkingPaths])
+
   return <div ref={elRef} className={className ?? 'h-full w-full'} />
 }
+
+export default memo(MapView)

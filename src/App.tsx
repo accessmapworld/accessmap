@@ -8,6 +8,7 @@ import {
   HomeSkeleton, MapSkeleton, PlaceDetailSkeleton, ProfileSkeleton,
   RouteSkeleton, ReviewSkeleton, ReportSkeleton, ForBusinessSkeleton,
   TextPageSkeleton, AdminSkeleton, ScanSkeleton, BusinessRegisterSkeleton,
+  TrailsSkeleton,
 } from './components/Skeletons'
 
 const Home             = lazy(() => import('./pages/Home'))
@@ -26,6 +27,7 @@ const Security         = lazy(() => import('./pages/Security'))
 const Accessibility    = lazy(() => import('./pages/Accessibility'))
 const ForBusiness      = lazy(() => import('./pages/ForBusiness'))
 const ScanPage         = lazy(() => import('./pages/ScanPage'))
+const TrailsPage       = lazy(() => import('./pages/TrailsPage'))
 
 function S({ children, fallback }: { children: React.ReactNode; fallback: React.ReactNode }) {
   return <Suspense fallback={fallback}>{children}</Suspense>
@@ -61,6 +63,7 @@ export default function App() {
         <Route path="/report"         element={<S fallback={<ReportSkeleton />}><Report /></S>} />
         <Route path="/submit-review"  element={<S fallback={<ReviewSkeleton />}><SubmitReview /></S>} />
         <Route path="/scan"           element={<S fallback={<ScanSkeleton />}><ScanPage /></S>} />
+        <Route path="/trails"         element={<S fallback={<TrailsSkeleton />}><TrailsPage /></S>} />
         <Route path="/profile"        element={<S fallback={<ProfileSkeleton />}><Profile /></S>} />
         <Route path="/for-business"   element={<S fallback={<ForBusinessSkeleton />}><ForBusiness /></S>} />
         <Route path="/business"       element={<S fallback={<BusinessRegisterSkeleton />}><BusinessRegister /></S>} />

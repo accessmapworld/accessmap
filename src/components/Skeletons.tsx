@@ -268,6 +268,34 @@ export function ScanSkeleton() {
   )
 }
 
+// ─── Trails ───────────────────────────────────────────────────────────────────
+export function TrailsSkeleton() {
+  return (
+    <div className="flex h-[calc(100vh-56px)]" aria-busy="true" aria-label="Loading trails">
+      <div className="w-[22rem] border-r border-border bg-white p-4 space-y-3">
+        <P className="h-6 w-40" />
+        <P className="h-3 w-32" />
+        <div className="grid grid-cols-3 gap-2 mt-2">
+          {[...Array(3)].map((_, i) => <P key={i} className="h-14 rounded-xl" />)}
+        </div>
+        <div className="flex gap-2 flex-wrap pt-2">
+          {[...Array(5)].map((_, i) => <P key={i} className="h-6 w-16 rounded-full" />)}
+        </div>
+        <div className="space-y-3 pt-2">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <P className="h-4 w-3/4" />
+              <P className="h-3 w-full" />
+              <P className="h-3 w-1/2" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex-1 bg-[#e8eaed] animate-pulse" />
+    </div>
+  )
+}
+
 // ─── Business register ────────────────────────────────────────────────────────
 export function BusinessRegisterSkeleton() {
   return (

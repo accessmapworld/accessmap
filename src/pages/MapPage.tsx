@@ -1,23 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Search, Loader2, X, LocateFixed, Accessibility, ExternalLink,
   MapPin as MapPinIcon, AlertTriangle, Route as RouteIcon, Mountain, Toilet,
   Navigation2, ChevronRight, ChevronDown, Car, ArrowUpDown, Zap, Clock, Info, CheckCircle2,
-  Eye, Ear, Brain, Mic,
+  Eye, Ear, Brain, TrainFront, Footprints,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
-import BottomNav from '../components/BottomNav'
 import BrandPin from '../components/MapPin'
 import MapView from '../components/MapView'
 import { scoreColor } from '../components/ScoreRing'
-import { getPlaces, subscribeAlerts } from '../lib/data'
+import { getPlaces, getAlerts } from '../lib/data'
 import { searchPlaces, type GeoResult } from '../lib/nominatim'
 import { CATEGORIES, categoryColor, nearbyByCategory, haversineKm, type Poi, type CategoryKey } from '../lib/overpass'
+import { getNearbyTransit, getNearbyWalkingPaths, type TransitLine, type TransitStation, type WalkingPath } from '../lib/transit'
 import { batchWikiImages } from '../lib/wikipedia'
 import { googleMapsTo } from '../lib/maps'
 import { useFocusTrap } from '../lib/useFocusTrap'
-import { useVoiceSearch } from '../lib/useVoiceSearch'
 import { scorePlace, hasProfile } from '../lib/compatibility'
 import { useStore } from '../store/useStore'
 import type { Place, Alert, Dimension } from '../types'
@@ -51,6 +50,9 @@ export default function MapPage() {
   const [places, setPlaces] = useState<Place[]>([])
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null)
+  // centerRef tracks map pan position without triggering re-renders
+  // center state is only updated when we actually need to run a search
+  const centerRef = useRef<[number, number] | null>(null)
   const [center, setCenter] = useState<[number, number] | null>(null)
   const [focus, setFocus] = useState<{ lat: number; lng: number; zoom?: number } | null>(null)
   const [locating, setLocating] = useState(false)
@@ -58,8 +60,6 @@ export default function MapPage() {
   const [q, setQ] = useState('')
   const [results, setResults] = useState<GeoResult[]>([])
   const [searching, setSearching] = useState(false)
-  const searchInputRef = useRef<HTMLInputElement>(null)
-  const voice = useVoiceSearch((text) => { setQ(text); searchInputRef.current?.focus() })
 
   const [activeCat, setActiveCat] = useState<CategoryKey | null>(null)
   const [pois, setPois] = useState<Poi[]>([])
@@ -75,6 +75,17 @@ export default function MapPage() {
       return n
     })
   }
+  // Transit / walking overlays
+  const [showTransit, setShowTransit] = useState(false)
+  const [showWalking, setShowWalking] = useState(false)
+  const [transitLines, setTransitLines] = useState<TransitLine[]>([])
+  const [transitStations, setTransitStations] = useState<TransitStation[]>([])
+  const [walkingPaths, setWalkingPaths] = useState<WalkingPath[]>([])
+  const [loadingTransit, setLoadingTransit] = useState(false)
+  const [loadingWalking, setLoadingWalking] = useState(false)
+  const transitAbort = useRef<AbortController | null>(null)
+  const walkAbort = useRef<AbortController | null>(null)
+
   // null = no message; string = show toast
   const [locToast, setLocToast] = useState<{ msg: string; type: 'info' | 'error' } | null>(null)
   const needsProfile = useStore((s) => s.needsProfile)
@@ -112,30 +123,12 @@ export default function MapPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    getPlaces().then(setPlaces)
-    // Live alerts stream in and keep the map pins / list current.
-    const unsubAlerts = subscribeAlerts(undefined, setAlerts)
-    // Silent startup — never show errors, just try to centre map
+    Promise.all([getPlaces(), getAlerts()]).then(([p, a]) => { setPlaces(p); setAlerts(a) })
     locateSilent()
-    return () => unsubAlerts()
   }, [])
 
   useEffect(() => () => {
     if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current)
-  }, [])
-
-  // Keyboard shortcut: "/" focuses the search box (unless already typing).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
-      const el = document.activeElement
-      const typing = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el as HTMLElement)?.isContentEditable
-      if (typing) return
-      e.preventDefault()
-      searchInputRef.current?.focus()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   function showToast(msg: string, type: 'info' | 'error' = 'info') {
@@ -144,32 +137,32 @@ export default function MapPage() {
     toastTimer.current = setTimeout(() => setLocToast(null), 6000)
   }
 
-  // IP geolocation — tries 4 services with a 4s timeout each
+  // IP geolocation — race 3 verified-working services in parallel
   async function ipCoords(): Promise<[number, number] | null> {
-    const to = (ms: number) => new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))
-    const services: (() => Promise<[number, number] | null>)[] = [
-      async () => {
-        const d: any = await Promise.race([fetch('https://get.geojs.io/v1/ip/geo.json').then(r => r.json()), to(4000)])
-        const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude)
-        return (!isNaN(lat) && !isNaN(lng)) ? [lat, lng] : null
-      },
-      async () => {
-        const d: any = await Promise.race([fetch('https://ip-api.com/json/?fields=lat,lon,status').then(r => r.json()), to(4000)])
-        return (d.status === 'success' && d.lat && d.lon) ? [d.lat, d.lon] : null
-      },
-      async () => {
-        const d: any = await Promise.race([fetch('https://freeipapi.com/api/json').then(r => r.json()), to(4000)])
-        return (d.latitude && d.longitude) ? [d.latitude, d.longitude] : null
-      },
-      async () => {
-        const d: any = await Promise.race([fetch('https://ipapi.co/json/').then(r => r.json()), to(4000)])
-        return (d.latitude && d.longitude) ? [d.latitude, d.longitude] : null
-      },
-    ]
-    for (const fn of services) {
-      try { const c = await fn(); if (c) return c } catch { /* try next */ }
+    const to = (ms: number) => new Promise<never>((_, rej) => setTimeout(() => rej(new Error('t')), ms))
+    const attempt = async (fn: () => Promise<[number, number] | null>) => {
+      const c = await fn(); if (!c) throw new Error('no coords'); return c
     }
-    return null
+    try {
+      return await Promise.any([
+        // geojs.io — lat/lng as strings
+        attempt(async () => {
+          const d: any = await Promise.race([fetch('https://get.geojs.io/v1/ip/geo.json').then(r => r.json()), to(4000)])
+          const lat = parseFloat(d.latitude), lng = parseFloat(d.longitude)
+          return (!isNaN(lat) && !isNaN(lng)) ? [lat, lng] as [number, number] : null
+        }),
+        // ipwho.is — free, no key, CORS-safe
+        attempt(async () => {
+          const d: any = await Promise.race([fetch('https://ipwho.is/').then(r => r.json()), to(4000)])
+          return (d.success && d.latitude && d.longitude) ? [d.latitude, d.longitude] as [number, number] : null
+        }),
+        // geolocation-db.com — free, no key
+        attempt(async () => {
+          const d: any = await Promise.race([fetch('https://geolocation-db.com/json/').then(r => r.json()), to(4000)])
+          return (d.latitude && d.longitude && d.latitude !== 'Not found') ? [+d.latitude, +d.longitude] as [number, number] : null
+        }),
+      ])
+    } catch { return null }
   }
 
   function startWatch() {
@@ -322,15 +315,51 @@ export default function MapPage() {
     }
   }
 
+  const onCenterChange = useCallback((lat: number, lng: number) => { centerRef.current = [lat, lng] }, [])
+  const onMapSelect = useCallback((p: Place) => setFocus({ lat: p.lat, lng: p.lng, zoom: 16 }), [])
+
+  function currentCenter(): [number, number] | null {
+    if (userLoc) return [userLoc.lat, userLoc.lng]
+    return centerRef.current ?? center
+  }
+
   function runCategory(cat: CategoryKey) {
     if (activeCat === cat) { setActiveCat(null); setPois([]); setPanelOpen(false); return }
-    const c = userLoc ? ([userLoc.lat, userLoc.lng] as [number, number]) : center
+    const c = currentCenter()
     if (c) {
       searchCategory(cat, c)
     } else {
       setActiveCat(cat); setPanelOpen(true); setLoadingPois(true)
       locateExplicit((loc) => searchCategory(cat, loc))
     }
+  }
+
+  async function toggleTransit() {
+    if (showTransit) { setShowTransit(false); setTransitLines([]); setTransitStations([]); return }
+    setShowTransit(true)
+    const c = currentCenter()
+    if (!c) return
+    setLoadingTransit(true)
+    transitAbort.current?.abort()
+    const ac = new AbortController(); transitAbort.current = ac
+    try {
+      const result = await getNearbyTransit(c, 8000, ac.signal)
+      if (!ac.signal.aborted) { setTransitLines(result.lines); setTransitStations(result.stations) }
+    } catch { /* */ } finally { if (!ac.signal.aborted) setLoadingTransit(false) }
+  }
+
+  async function toggleWalking() {
+    if (showWalking) { setShowWalking(false); setWalkingPaths([]); return }
+    setShowWalking(true)
+    const c = currentCenter()
+    if (!c) return
+    setLoadingWalking(true)
+    walkAbort.current?.abort()
+    const ac = new AbortController(); walkAbort.current = ac
+    try {
+      const paths = await getNearbyWalkingPaths(c, 2000, ac.signal)
+      if (!ac.signal.aborted) setWalkingPaths(paths)
+    } catch { /* */ } finally { if (!ac.signal.aborted) setLoadingWalking(false) }
   }
 
   function pickResult(r: GeoResult) {
@@ -366,59 +395,58 @@ export default function MapPage() {
       <Navbar />
 
       {/* Map fills everything below nav */}
-      <div
-        id="main-content"
-        className="absolute inset-0"
-        style={{ paddingTop: 'var(--app-header-h, 64px)' }}
-        role="region"
-        aria-label="Interactive map of accessible places. A text list of places follows below for screen readers."
-      >
+      <div id="main-content" className="absolute inset-0 pt-16">
         <MapView
           places={visiblePlaces}
           pois={sortedPois}
           alertPlaceIds={alertIds}
           userLocation={userLoc}
           focus={focus}
-          onCenterChange={(lat, lng) => setCenter([lat, lng])}
-          onSelect={(p) => setFocus({ lat: p.lat, lng: p.lng, zoom: 16 })}
+          onCenterChange={onCenterChange}
+          onSelect={onMapSelect}
+          transitLines={transitLines}
+          transitStations={transitStations}
+          walkingPaths={walkingPaths}
         />
       </div>
 
-      {/* Screen-reader status: announces search progress / result counts */}
-      <div className="sr-only" role="status" aria-live="polite">
-        {panelOpen
-          ? (loadingPois ? 'Searching for nearby places…' : `${sortedPois.length} ${activeCatMeta?.label ?? 'places'} found nearby`)
-          : ''}
+      {/* Transit + Walking overlay toggles — bottom right */}
+      <div className="absolute bottom-10 right-3 z-[700] flex flex-col gap-1.5">
+        <button
+          onClick={toggleTransit}
+          aria-pressed={showTransit}
+          title="Show train lines & stations"
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold shadow-md transition-all ${
+            showTransit
+              ? 'bg-[#1a73e8] text-white'
+              : 'bg-white text-[#374151] hover:bg-[#f1f3f4]'
+          }`}
+        >
+          {loadingTransit
+            ? <Loader2 size={14} className="animate-spin" />
+            : <TrainFront size={14} />}
+          <span>Trains</span>
+        </button>
+        <button
+          onClick={toggleWalking}
+          aria-pressed={showWalking}
+          title="Show walking paths"
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold shadow-md transition-all ${
+            showWalking
+              ? 'bg-[#16a34a] text-white'
+              : 'bg-white text-[#374151] hover:bg-[#f1f3f4]'
+          }`}
+        >
+          {loadingWalking
+            ? <Loader2 size={14} className="animate-spin" />
+            : <Footprints size={14} />}
+          <span>Walking</span>
+        </button>
       </div>
-
-      {/* Screen-reader-accessible alternative to the visual map markers.
-          Leaflet pins aren't reachable by assistive tech, so we expose the
-          same places as a navigable list of links. */}
-      <nav className="sr-only" aria-label="Accessible places shown on the map">
-        <h2>Places on the map ({visiblePlaces.length})</h2>
-        {visiblePlaces.length === 0 ? (
-          <p>No places match the current filters. Adjust filters or move the map.</p>
-        ) : (
-          <ul>
-            {visiblePlaces.map((p) => {
-              const avg = (p.scores.mobility + p.scores.sensory + p.scores.hearing + p.scores.vision) / 4
-              return (
-                <li key={p.id}>
-                  <Link to={`/place/${p.id}`}>
-                    {p.name} — accessibility score {avg.toFixed(1)} out of 10
-                    {alertIds.has(p.id) ? ', has an active accessibility alert' : ''}
-                    {p.sponsored ? ', sponsored listing' : ''}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </nav>
 
       {/* OSM attribution */}
       <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer"
-        className="absolute bottom-[64px] right-2 z-[700] rounded-md bg-white/90 px-2 py-0.5 text-[10px] text-[#6b7280] shadow-sm hover:text-[#111827] sm:bottom-2">
+        className="absolute bottom-2 right-2 z-[700] rounded-md bg-white/90 px-2 py-0.5 text-[10px] text-[#6b7280] shadow-sm hover:text-[#111827]">
         © OpenStreetMap contributors
       </a>
 
@@ -426,8 +454,7 @@ export default function MapPage() {
       <div
         role="region"
         aria-label="Search and filter panel"
-        className="pointer-events-none absolute left-0 bottom-[58px] z-[800] flex w-full flex-col gap-2.5 px-3 pb-4 pt-3 sm:bottom-0 sm:w-[25rem]"
-        style={{ top: 'var(--app-header-h, 64px)' }}
+        className="pointer-events-none absolute left-0 top-16 bottom-0 z-[800] flex w-full flex-col gap-2.5 px-3 pb-4 pt-3 sm:w-[25rem]"
       >
 
         {/* Search bar */}
@@ -438,32 +465,16 @@ export default function MapPage() {
           >
             <Search size={17} className="shrink-0 text-[#9aa0a6]" aria-hidden="true" />
             <input
-              ref={searchInputRef}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search places, buildings, addresses…"
-              aria-label="Search for accessible places. Press slash to focus, or use the microphone for voice search."
+              aria-label="Search for accessible places"
               aria-autocomplete="list"
               aria-controls="search-results"
               aria-expanded={results.length > 0}
               className="min-w-0 flex-1 bg-transparent py-2.5 text-[15px] text-[#202124] outline-none placeholder:text-[#9aa0a6]"
             />
             {searching && <Loader2 size={15} className="shrink-0 animate-spin text-primary" aria-label="Searching…" />}
-            {voice.supported && (
-              <button
-                onClick={voice.toggle}
-                aria-label={voice.listening ? 'Stop voice search' : 'Search by voice'}
-                aria-pressed={voice.listening}
-                className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
-                  voice.listening ? 'bg-alert/10 text-alert' : 'text-[#9aa0a6] hover:bg-[#f1f3f4] hover:text-primary'
-                }`}
-              >
-                {voice.listening && (
-                  <span className="absolute inline-flex h-6 w-6 animate-ping rounded-full bg-alert/40" aria-hidden="true" />
-                )}
-                <Mic size={17} aria-hidden="true" />
-              </button>
-            )}
             {q && !searching && (
               <button
                 onClick={() => { setQ(''); setResults([]) }}
@@ -905,9 +916,6 @@ export default function MapPage() {
           </div>
         </div>
       )}
-
-      {/* Mobile bottom navigation */}
-      <BottomNav />
     </div>
   )
 }

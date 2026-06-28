@@ -1,9 +1,91 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function isAuthed() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isAuthed() && request.auth.uid == uid;
+    }
+    // Admin status lives in /admins/{uid} — writable only via Firebase Console
+    function isAdmin() {
+      return isAuthed() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function validScore(v) {
+      return v is number && v >= 0 && v <= 10;
+    }
+    function validScores(s) {
+      return s.keys().hasAll(['mobility','sensory','hearing','vision'])
+        && validScore(s.mobility) && validScore(s.sensory)
+        && validScore(s.hearing)  && validScore(s.vision);
+    }
+    function validReview() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['placeId','userId','body','scores','createdAt','status'])
+        && d.body is string
+        && d.body.size() >= 10
+        && d.body.size() <= 2000
+        && d.userId == request.auth.uid
+        && validScores(d.scores)
+        && (d.status == 'approved' || d.status == 'hidden');
+    }
+    function validAlert() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['placeId','type','body','createdAt','status'])
+        && d.body is string && d.body.size() >= 5 && d.body.size() <= 500
+        && d.status == 'active';
+    }
+    function validSpec() {
+      return request.resource.data.userId == request.auth.uid
+        && request.resource.data.placeId is string;
+    }
+
+    // ── Admins (read-only from client) ────────────────────────────────────────
+    match /admins/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // ── Places ────────────────────────────────────────────────────────────────
+    match /places/{placeId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow create: if isAuthed();
+      allow update, delete: if isAdmin();
+
+      // Reviews
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isAuthed() && validReview();
+        allow update: if isAdmin();
+        allow delete: if isOwner(resource.data.userId) || isAdmin();
+      }
+
+      // Specs
+      match /specs/{specId} {
+        allow read: if true;
+        allow create: if isAuthed() && validSpec();
+        allow update, delete: if isOwner(resource.data.userId) || isAdmin();
+      }
+    }
+
+    // ── Alerts ────────────────────────────────────────────────────────────────
+    match /alerts/{alertId} {
+      allow read: if true;
+      allow create: if isAuthed() && validAlert();
+      allow update, delete: if isAdmin();
+    }
+
+    // ── User profiles ─────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Deny everything not explicitly matched
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

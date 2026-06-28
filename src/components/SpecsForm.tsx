@@ -15,7 +15,7 @@ export default function SpecsForm({ placeId, onDone }: Props) {
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [photos, setPhotos] = useState<string[]>([])
-  const [draft, setDraft] = useState<Omit<AccessSpecs, 'id' | 'placeId' | 'contributedBy' | 'contributedAt'>>({})
+  const [draft, setDraft] = useState<Omit<AccessSpecs, 'id' | 'placeId' | 'userId' | 'contributedBy' | 'contributedAt'>>({})
 
   function set<K extends keyof typeof draft>(k: K, v: typeof draft[K]) {
     setDraft(d => ({ ...d, [k]: v }))
@@ -26,6 +26,7 @@ export default function SpecsForm({ placeId, onDone }: Props) {
     try {
       await addSpecs({
         placeId,
+        userId: user?.uid ?? '',
         contributedBy: user?.displayName ?? 'Anonymous',
         ...draft,
         photos,
