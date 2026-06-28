@@ -1,17 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import { Loader2, Search, AlertTriangle, Navigation, ExternalLink, LocateFixed, X } from 'lucide-react'
+import { Loader2, AlertTriangle, Navigation, ExternalLink, LocateFixed, X, Accessibility } from 'lucide-react'
 import Layout from '../components/Layout'
-import { searchPlaces, reverseGeocode, getWalkingRoute, type GeoResult } from '../lib/nominatim'
+import { searchPlaces, reverseGeocode, getWalkingRoute, getWheelchairRoute, type GeoResult } from '../lib/nominatim'
 import { googleMapsDir } from '../lib/maps'
-
-type Pref = 'stairs' | 'hills' | 'construction' | 'elevators'
-const PREFS: { key: Pref; label: string }[] = [
-  { key: 'stairs', label: 'Avoid stairs' },
-  { key: 'hills', label: 'Avoid steep hills' },
-  { key: 'construction', label: 'Avoid construction' },
-  { key: 'elevators', label: 'Prefer elevators' },
-]
 
 const dot = (color: string) =>
   L.divIcon({
@@ -104,12 +96,12 @@ export default function RoutePlanner() {
   const markersRef = useRef<L.Marker[]>([])
   const [start, setStart] = useState<GeoResult>()
   const [end, setEnd] = useState<GeoResult>()
-  const [prefs, setPrefs] = useState<Set<Pref>>(new Set(['stairs', 'elevators']))
   const [steps, setSteps] = useState<string[]>([])
   const [meta, setMeta] = useState<{ km: number; min: number } | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [hint, setHint] = useState('Tip: tap “Use my location”, search an address, or click the map.')
+  const [wheelchairMode, setWheelchairMode] = useState(false)
 
   // refs so the Leaflet click handler always sees the latest state
   const startRef = useRef<GeoResult>(); startRef.current = start
@@ -155,28 +147,28 @@ export default function RoutePlanner() {
     else if (end) map.setView([end.lat, end.lng], 14)
   }, [start, end])
 
-  function togglePref(p: Pref) {
-    setPrefs((s) => { const n = new Set(s); n.has(p) ? n.delete(p) : n.add(p); return n })
-  }
-
   async function plan() {
     if (!start || !end || !mapRef.current) return
     setBusy(true); setErr('')
     try {
-      const { coords, distance, duration, steps } = await getWalkingRoute([start.lat, start.lng], [end.lat, end.lng])
+      const routeFn = wheelchairMode ? getWheelchairRoute : getWalkingRoute
+      const { coords, distance, duration, steps } = await routeFn([start.lat, start.lng], [end.lat, end.lng])
       lineRef.current?.remove()
       markersRef.current.forEach((m) => m.remove())
-      const line = L.polyline(coords, { color: '#0ABFBF', weight: 5, opacity: 0.9 }).addTo(mapRef.current)
+      const routeColor = wheelchairMode ? '#2563eb' : '#0ABFBF'
+      const line = L.polyline(coords, { color: routeColor, weight: 5, opacity: 0.9 }).addTo(mapRef.current)
       lineRef.current = line
       markersRef.current = [
-        L.marker([start.lat, start.lng], { icon: dot('#0ABFBF') }).addTo(mapRef.current).bindTooltip('Start'),
+        L.marker([start.lat, start.lng], { icon: dot(routeColor) }).addTo(mapRef.current).bindTooltip('Start'),
         L.marker([end.lat, end.lng], { icon: dot('#FF6B47') }).addTo(mapRef.current).bindTooltip('Destination'),
       ]
       mapRef.current.fitBounds(line.getBounds(), { padding: [40, 40] })
       setSteps(steps)
       setMeta({ km: distance / 1000, min: Math.round(duration / 60) })
     } catch {
-      setErr('Could not find a walking route between those points.')
+      setErr(wheelchairMode
+        ? 'Could not find a wheelchair-accessible route between those points. Try a shorter distance or switch to walking mode.'
+        : 'Could not find a walking route between those points.')
     } finally { setBusy(false) }
   }
 
@@ -192,7 +184,7 @@ export default function RoutePlanner() {
   return (
     <Layout>
       <h1 className="text-3xl font-semibold">Accessible route planner</h1>
-      <p className="mt-1 text-muted">Step-free walking directions with accessibility warnings flagged.</p>
+      <p className="mt-1 text-muted">Walking directions with optional wheelchair-accessible routing — avoids stairs, steep grades, and inaccessible surfaces.</p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
         <div className="space-y-4">
@@ -201,14 +193,25 @@ export default function RoutePlanner() {
 
           <p className="text-xs text-muted">{hint}</p>
 
-          <div className="flex flex-wrap gap-2">
-            {PREFS.map((p) => (
-              <button key={p.key} onClick={() => togglePref(p.key)}
-                className={`rounded-full border px-3 py-1.5 text-sm transition-colors duration-150 ${
-                  prefs.has(p.key) ? 'border-primary bg-primary text-white' : 'border-border bg-card text-muted hover:text-ink'
-                }`}>{p.label}</button>
-            ))}
-          </div>
+          <button
+            onClick={() => setWheelchairMode((v) => !v)}
+            className={`flex w-full items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors duration-150 ${
+              wheelchairMode
+                ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                : 'border-border bg-card text-muted hover:text-ink'
+            }`}
+          >
+            <Accessibility size={18} />
+            <span>Wheelchair-accessible route</span>
+            {wheelchairMode && (
+              <span className="ml-auto rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white">ON</span>
+            )}
+          </button>
+          {wheelchairMode && (
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              Avoids stairs and steep grades — routes use ramps, curb cuts, and accessible crossings where available.
+            </p>
+          )}
 
           <div className="flex gap-2">
             <button onClick={plan} disabled={!start || !end || busy} className="btn-primary flex-1 disabled:opacity-50">
@@ -228,7 +231,14 @@ export default function RoutePlanner() {
 
           {meta && (
             <div className="card p-4">
-              <p className="label">{meta.km.toFixed(1)} km · ~{meta.min} min walking</p>
+              <div className="flex items-center gap-2">
+                <p className="label">{meta.km.toFixed(1)} km · ~{meta.min} min walking</p>
+                {wheelchairMode && (
+                  <span className="flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                    <Accessibility size={11} /> Wheelchair
+                  </span>
+                )}
+              </div>
               <ol className="mt-3 space-y-2">
                 {steps.map((s, i) => (
                   <li key={i} className={`flex gap-2 text-sm ${warn(s) ? 'text-alert' : 'text-ink/90'}`}>

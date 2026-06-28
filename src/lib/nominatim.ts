@@ -80,3 +80,69 @@ export async function getWalkingRoute(
   })
   return { coords, distance: route.distance, duration: route.duration, steps }
 }
+
+/** Valhalla wheelchair route — avoids stairs, high grades, and inaccessible surfaces. */
+export async function getWheelchairRoute(
+  start: [number, number],
+  end: [number, number],
+): Promise<{ coords: [number, number][]; distance: number; duration: number; steps: string[] }> {
+  await spaced('valhalla', 600)
+  const body = {
+    locations: [
+      { lat: start[0], lon: start[1] },
+      { lat: end[0], lon: end[1] },
+    ],
+    costing: 'pedestrian',
+    costing_options: {
+      pedestrian: {
+        step_penalty: 30,
+        max_grade: 8,
+        walking_speed: 3.1,
+        use_ferry: 0,
+      },
+    },
+    directions_options: { units: 'kilometers', language: 'en-US' },
+  }
+  const res = await fetch('https://valhalla1.openstreetmap.de/route', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error('Wheelchair routing failed')
+  const data = await res.json()
+  const leg = data.trip?.legs?.[0]
+  if (!leg) throw new Error('No route found')
+
+  const coords = decodePolyline(leg.shape, 6)
+
+  const steps: string[] = (leg.maneuvers ?? []).map((m: any) => {
+    const name = m.street_names?.join(' / ') || 'the path'
+    const dist = m.length ? `${(m.length * 1000).toFixed(0)} m` : ''
+    const verb = m.instruction || `${m.type ?? 'continue'} on ${name}`
+    return dist ? `${verb} — ${dist}` : verb
+  })
+
+  const summary = data.trip?.summary
+  return {
+    coords,
+    distance: (summary?.length ?? 0) * 1000,
+    duration: (summary?.time ?? 0),
+    steps,
+  }
+}
+
+function decodePolyline(encoded: string, precision = 5): [number, number][] {
+  const factor = Math.pow(10, precision)
+  const coords: [number, number][] = []
+  let lat = 0, lng = 0, i = 0
+  while (i < encoded.length) {
+    let b, shift = 0, result = 0
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
+    lat += result & 1 ? ~(result >> 1) : result >> 1
+    shift = 0; result = 0
+    do { b = encoded.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
+    lng += result & 1 ? ~(result >> 1) : result >> 1
+    coords.push([lat / factor, lng / factor])
+  }
+  return coords
+}

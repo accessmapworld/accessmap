@@ -225,11 +225,9 @@ export default function MapPage() {
       }
       setCenter([lat, lng])
       setFocus({ lat, lng, zoom: precise ? 17 : 13 })
-      if (!precise) {
+      if (!precise && permDenied) {
         showToast(
-          permDenied
-            ? 'Location permission denied — showing approximate area. Enable location in your browser settings for GPS.'
-            : 'Showing approximate location — GPS not available on this device.',
+          'Location permission denied — enable it in your browser settings for GPS.',
           'info',
         )
       }
