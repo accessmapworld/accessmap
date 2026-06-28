@@ -77,6 +77,11 @@ function cacheSet<T>(key: string, value: T) {
   try { localStorage.setItem('am.cache.' + key, JSON.stringify(value)) } catch { /* quota — ignore */ }
 }
 
+/* ── In-memory cache (5 min TTL) ─────────────────────────────────────────── */
+type CacheEntry<T> = { data: T; ts: number }
+const CACHE_TTL = 5 * 60 * 1000
+const cache: { places?: CacheEntry<Place[]>; alerts?: CacheEntry<Alert[]> } = {}
+
 /* ----------------------------- Places ----------------------------- */
 export async function getPlaces(): Promise<Place[]> {
   const db = FIREBASE_ENABLED ? await getDb() : null
@@ -227,9 +232,11 @@ export async function getAlerts(placeId?: string, onlyActive = true): Promise<Al
   if (onlyActive) clauses.push(where('status', '==', 'active'))
   const q = query(collection(db, 'alerts'), ...clauses)
   const snap = await getDocs(q)
-  return snap.docs
+  const data = snap.docs
     .map((d) => ({ id: d.id, ...(d.data() as Omit<Alert, 'id'>), createdAt: toMs(d.data().createdAt) }))
     .sort((a, b) => b.createdAt - a.createdAt)
+  if (!placeId) cache.alerts = { data, ts: Date.now() }
+  return data
 }
 
 export async function addAlert(input: Omit<Alert, 'id' | 'createdAt' | 'status'>): Promise<Alert> {
