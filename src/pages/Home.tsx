@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { Link } from 'react-router-dom'
 import {
   MapPin, ArrowRight, Star, ShieldCheck, Ear, Eye,
@@ -7,7 +7,9 @@ import {
   Accessibility, Heart, Lock, ChevronRight,
 } from 'lucide-react'
 import Layout from '../components/Layout'
-import Aurora from '../components/reactbits/Aurora'
+// Aurora pulls the WebGL (ogl) runtime — lazy-loaded so the hero text paints
+// immediately and the animated background fades in afterwards.
+const Aurora = lazy(() => import('../components/reactbits/Aurora'))
 import GradientText from '../components/reactbits/GradientText'
 import ShinyText from '../components/reactbits/ShinyText'
 import { getHomeReviews } from '../lib/data'
@@ -206,7 +208,9 @@ export default function Home() {
       {/* ── HERO ──────────────────────────────────────────────────────────── */}
       <section aria-labelledby="hero-heading" className="relative mx-3 mt-3 overflow-hidden rounded-3xl bg-[#070B18] px-6 py-24 text-center sm:py-36">
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-          <Aurora colorStops={['#0ABFBF', '#1a73e8', '#7C3AED']} amplitude={1.2} blend={0.5} />
+          <Suspense fallback={null}>
+            <Aurora colorStops={['#0ABFBF', '#1a73e8', '#7C3AED']} amplitude={1.2} blend={0.5} />
+          </Suspense>
         </div>
 
         {/* Floating badge */}
@@ -444,7 +448,9 @@ export default function Home() {
       <section aria-labelledby="cta-heading" className="px-3 pb-16">
         <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl bg-[#070B18] px-6 py-20 text-center">
           <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden="true">
-            <Aurora colorStops={['#1a73e8', '#0ABFBF', '#1a73e8']} amplitude={0.8} blend={0.5} />
+            <Suspense fallback={null}>
+              <Aurora colorStops={['#1a73e8', '#0ABFBF', '#1a73e8']} amplitude={0.8} blend={0.5} />
+            </Suspense>
           </div>
           <div className="relative z-10">
             <Zap className="mx-auto mb-4 text-[#0ABFBF]" size={36} aria-hidden="true" />

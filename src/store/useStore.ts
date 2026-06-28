@@ -1,9 +1,5 @@
 import { create } from 'zustand'
-import {
-  GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, signOut, onAuthStateChanged,
-} from 'firebase/auth'
-import { auth, FIREBASE_ENABLED } from '../lib/firebase'
+import { getAuthInstance, FIREBASE_ENABLED } from '../lib/firebase'
 import type { AppUser, FilterKey, NeedsProfile } from '../types'
 import { DEFAULT_PROFILE } from '../lib/compatibility'
 
@@ -71,45 +67,61 @@ export const useStore = create<AppState>((set, get) => ({
     }),
 
   initAuth: () => {
-    if (!FIREBASE_ENABLED || !auth) {
+    if (!FIREBASE_ENABLED) {
       set({ authReady: true })
       return
     }
-    onAuthStateChanged(auth, (fbUser) => {
-      if (fbUser) {
-        set({
-          user: {
-            uid: fbUser.uid,
-            displayName: fbUser.displayName || fbUser.email || 'User',
-            email: fbUser.email || '',
-            photoURL: fbUser.photoURL || undefined,
-            role: 'user',
-            premium: false,
-            savedPlaces: [],
-            reviewCount: 0,
-            reportCount: 0,
-          },
-          authReady: true,
-        })
-      } else {
-        set({ user: null, authReady: true })
-      }
-    })
+    // Auth SDK loads lazily — never blocks first paint.
+    void (async () => {
+      const auth = await getAuthInstance()
+      if (!auth) { set({ authReady: true }); return }
+      const { onAuthStateChanged } = await import('firebase/auth')
+      onAuthStateChanged(auth, (fbUser) => {
+        if (fbUser) {
+          set({
+            user: {
+              uid: fbUser.uid,
+              displayName: fbUser.displayName || fbUser.email || 'User',
+              email: fbUser.email || '',
+              photoURL: fbUser.photoURL || undefined,
+              role: 'user',
+              premium: false,
+              savedPlaces: [],
+              reviewCount: 0,
+              reportCount: 0,
+            },
+            authReady: true,
+          })
+        } else {
+          set({ user: null, authReady: true })
+        }
+      })
+    })()
   },
 
   signInGoogle: async () => {
-    if (!FIREBASE_ENABLED || !auth) throw new Error('Firebase is not configured.')
+    const auth = await getAuthInstance()
+    if (!auth) throw new Error('Firebase is not configured.')
+    const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth')
     await signInWithPopup(auth, new GoogleAuthProvider())
   },
 
-  signInEmail: async (email, pw, name, register) => {
-    if (!FIREBASE_ENABLED || !auth) throw new Error('Firebase is not configured.')
+  signInEmail: async (email, pw, _name, register) => {
+    const auth = await getAuthInstance()
+    if (!auth) throw new Error('Firebase is not configured.')
+    const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth')
     if (register) await createUserWithEmailAndPassword(auth, email, pw)
     else await signInWithEmailAndPassword(auth, email, pw)
   },
 
   logout: async () => {
-    if (FIREBASE_ENABLED && auth) await signOut(auth)
+    if (FIREBASE_ENABLED) {
+      const auth = await getAuthInstance()
+      if (auth) {
+        const { signOut } = await import('firebase/auth')
+        await signOut(auth)
+      }
+    }
     set({ user: null })
   },
 }))

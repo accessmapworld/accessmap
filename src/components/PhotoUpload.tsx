@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react'
 import { UploadCloud, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react'
 import { verifyAccessibilityPhoto } from '../lib/roboflow'
-import { FIREBASE_ENABLED, storage } from '../lib/firebase'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { FIREBASE_ENABLED, getStorageInstance } from '../lib/firebase'
 import type { VerifyResult } from '../types'
 
 interface Props {
@@ -23,7 +22,9 @@ export default function PhotoUpload({ onResult }: Props) {
     setPreview(localUrl)
     try {
       let url = localUrl
-      if (FIREBASE_ENABLED && storage) {
+      const storage = FIREBASE_ENABLED ? await getStorageInstance() : null
+      if (storage) {
+        const { ref: storageRef, uploadBytes, getDownloadURL } = await import('firebase/storage')
         const r = storageRef(storage, `uploads/${Date.now()}-${file.name}`)
         await uploadBytes(r, file)
         url = await getDownloadURL(r)

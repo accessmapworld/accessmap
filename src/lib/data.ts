@@ -1,11 +1,12 @@
-import { FIREBASE_ENABLED, db } from './firebase'
-import {
-  collection, doc, getDoc, getDocs, addDoc, updateDoc, query, where,
-  orderBy, serverTimestamp, Timestamp, onSnapshot,
-} from 'firebase/firestore'
+import { FIREBASE_ENABLED, getDb } from './firebase'
 import type { Place, Review, Alert, AccessSpecs, Scores } from '../types'
 import { mockPlaces, mockReviews, mockAlerts } from './mockData'
 import { checkRate } from './rateLimit'
+
+/* Firestore SDK is loaded lazily (and cached) so it never enters the initial
+ * bundle in mock-data mode — every Firebase branch awaits `fs()` for its fns. */
+let _fs: Promise<typeof import('firebase/firestore')> | null = null
+function fs() { return (_fs ??= import('firebase/firestore')) }
 
 /* ------------------------------------------------------------------ *
  * Live updates (mock/local mode): a tiny pub/sub so the UI reflects
@@ -60,8 +61,12 @@ function saveLocal(l: Local) {
 let local = typeof localStorage !== 'undefined' ? loadLocal() : { reviews: [...mockReviews], alerts: [...mockAlerts], places: [] as Place[] }
 const uid = () => Math.random().toString(36).slice(2, 10)
 
+// Duck-typed so we don't need a static `Timestamp` import (Firestore timestamps
+// expose `.toMillis()`); plain epoch numbers pass straight through.
 const toMs = (v: unknown): number =>
-  v instanceof Timestamp ? v.toMillis() : typeof v === 'number' ? v : Date.now()
+  v && typeof (v as { toMillis?: unknown }).toMillis === 'function'
+    ? (v as { toMillis: () => number }).toMillis()
+    : typeof v === 'number' ? v : Date.now()
 
 /* Offline cache for live (Firebase) reads — last successful result is kept in
  * localStorage so the map still renders when the network drops. */
@@ -74,11 +79,13 @@ function cacheSet<T>(key: string, value: T) {
 
 /* ----------------------------- Places ----------------------------- */
 export async function getPlaces(): Promise<Place[]> {
-  if (!FIREBASE_ENABLED || !db) {
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) {
     // sponsored / self-listed businesses first
     return [...local.places, ...mockPlaces].sort((a, b) => Number(b.sponsored) - Number(a.sponsored))
   }
   try {
+    const { collection, getDocs } = await fs()
     const snap = await getDocs(collection(db, 'places'))
     const places = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Place, 'id'>), lastUpdated: toMs(d.data().lastUpdated) }))
     cacheSet('places', places)
@@ -92,8 +99,10 @@ export async function getPlaces(): Promise<Place[]> {
 }
 
 export async function getPlace(id: string): Promise<Place | null> {
-  if (!FIREBASE_ENABLED || !db)
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db)
     return local.places.find((p) => p.id === id) ?? mockPlaces.find((p) => p.id === id) ?? null
+  const { doc, getDoc } = await fs()
   const d = await getDoc(doc(db, 'places', id))
   if (!d.exists()) return null
   return { id: d.id, ...(d.data() as Omit<Place, 'id'>), lastUpdated: toMs(d.data().lastUpdated) }
@@ -102,21 +111,25 @@ export async function getPlace(id: string): Promise<Place | null> {
 export async function addPlace(input: Omit<Place, 'id' | 'lastUpdated' | 'reviewCount'>): Promise<Place> {
   checkRate('listing', { minGapMs: 15000, maxPerHour: 8, label: 'business listing' })
   const base = { ...input, reviewCount: 0, lastUpdated: Date.now() }
-  if (!FIREBASE_ENABLED || !db) {
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) {
     const place: Place = { ...base, id: 'biz-' + uid() }
     local.places.unshift(place)
     saveLocal(local)
     emitLocal()
     return place
   }
+  const { collection, addDoc, serverTimestamp } = await fs()
   const ref = await addDoc(collection(db, 'places'), { ...input, reviewCount: 0, lastUpdated: serverTimestamp() })
   return { ...base, id: ref.id }
 }
 
 /* ----------------------------- Reviews ---------------------------- */
 export async function getReviews(placeId: string): Promise<Review[]> {
-  if (!FIREBASE_ENABLED || !db)
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db)
     return local.reviews.filter((r) => r.placeId === placeId).sort((a, b) => b.createdAt - a.createdAt)
+  const { collection, query, orderBy, getDocs } = await fs()
   const q = query(collection(db, 'places', placeId, 'reviews'), orderBy('createdAt', 'desc'))
   const snap = await getDocs(q)
   return snap.docs.map((d) => ({ id: d.id, placeId, ...(d.data() as Omit<Review, 'id' | 'placeId'>), createdAt: toMs(d.data().createdAt) }))
@@ -144,13 +157,15 @@ export async function addReview(input: Omit<Review, 'id' | 'createdAt' | 'status
   checkRate('review', { minGapMs: 8000, maxPerHour: 15, label: 'review' })
   const status: 'approved' | 'hidden' = reviewPasses(input.body, input.scores) ? 'approved' : 'hidden'
   const payload = { ...input, status }
-  if (!FIREBASE_ENABLED || !db) {
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) {
     const review: Review = { ...payload, id: uid(), createdAt: Date.now() }
     local.reviews.unshift(review)
     saveLocal(local)
     emitLocal()
     return review
   }
+  const { collection, addDoc, serverTimestamp } = await fs()
   const ref = await addDoc(collection(db, 'places', input.placeId, 'reviews'), {
     ...payload, createdAt: serverTimestamp(),
   })
@@ -158,16 +173,17 @@ export async function addReview(input: Omit<Review, 'id' | 'createdAt' | 'status
 }
 
 export async function getHomeReviews(limit = 6): Promise<Review[]> {
-  if (!FIREBASE_ENABLED || !db) {
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) {
     return local.reviews
       .filter(r => r.status === 'approved' && r.body.trim().length >= 20)
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, limit)
   }
   // Firestore: collectionGroup across all places/reviews
-  const { collectionGroup: cg, limit: fsLimit } = await import('firebase/firestore')
+  const { collectionGroup, query, where, orderBy, limit: fsLimit, getDocs } = await fs()
   const q = query(
-    cg(db, 'reviews'),
+    collectionGroup(db, 'reviews'),
     where('status', '==', 'approved'),
     orderBy('createdAt', 'desc'),
     fsLimit(limit),
@@ -183,12 +199,14 @@ export async function getHomeReviews(limit = 6): Promise<Review[]> {
 
 /* ----------------------------- Alerts ----------------------------- */
 export async function getAlerts(placeId?: string, onlyActive = true): Promise<Alert[]> {
-  if (!FIREBASE_ENABLED || !db) {
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) {
     return local.alerts
       .filter((a) => (placeId ? a.placeId === placeId : true))
       .filter((a) => (onlyActive ? a.status === 'active' : true))
       .sort((a, b) => b.createdAt - a.createdAt)
   }
+  const { collection, query, where, getDocs } = await fs()
   const clauses = []
   if (placeId) clauses.push(where('placeId', '==', placeId))
   if (onlyActive) clauses.push(where('status', '==', 'active'))
@@ -201,13 +219,15 @@ export async function getAlerts(placeId?: string, onlyActive = true): Promise<Al
 
 export async function addAlert(input: Omit<Alert, 'id' | 'createdAt' | 'status'>): Promise<Alert> {
   checkRate('report', { minGapMs: 8000, maxPerHour: 20, label: 'report' })
-  if (!FIREBASE_ENABLED || !db) {
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) {
     const alert: Alert = { ...input, id: uid(), status: 'active', createdAt: Date.now() }
     local.alerts.unshift(alert)
     saveLocal(local)
     emitLocal()
     return alert
   }
+  const { collection, addDoc, serverTimestamp } = await fs()
   const ref = await addDoc(collection(db, 'alerts'), {
     ...input, status: 'active', createdAt: serverTimestamp(),
   })
@@ -215,12 +235,14 @@ export async function addAlert(input: Omit<Alert, 'id' | 'createdAt' | 'status'>
 }
 
 export async function resolveAlert(id: string): Promise<void> {
-  if (!FIREBASE_ENABLED || !db) {
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) {
     local.alerts = local.alerts.map((a) => (a.id === id ? { ...a, status: 'resolved', resolvedAt: Date.now() } : a))
     saveLocal(local)
     emitLocal()
     return
   }
+  const { doc, updateDoc, serverTimestamp } = await fs()
   await updateDoc(doc(db, 'alerts', id), { status: 'resolved', resolvedAt: serverTimestamp() })
 }
 
@@ -233,7 +255,9 @@ function saveSpecs(s: AccessSpecs[]) { try { localStorage.setItem(LS_SPECS, JSON
 let localSpecs: AccessSpecs[] = typeof localStorage !== 'undefined' ? loadSpecs() : []
 
 export async function getSpecs(placeId: string): Promise<AccessSpecs[]> {
-  if (!FIREBASE_ENABLED || !db) return localSpecs.filter(s => s.placeId === placeId).sort((a, b) => b.contributedAt - a.contributedAt)
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) return localSpecs.filter(s => s.placeId === placeId).sort((a, b) => b.contributedAt - a.contributedAt)
+  const { collection, query, orderBy, getDocs } = await fs()
   const q = query(collection(db, 'places', placeId, 'specs'), orderBy('contributedAt', 'desc'))
   const snap = await getDocs(q)
   return snap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<AccessSpecs, 'id'>), contributedAt: toMs(d.data().contributedAt) }))
@@ -241,13 +265,15 @@ export async function getSpecs(placeId: string): Promise<AccessSpecs[]> {
 
 export async function addSpecs(input: Omit<AccessSpecs, 'id' | 'contributedAt'>): Promise<AccessSpecs> {
   checkRate('report', { minGapMs: 5000, maxPerHour: 20, label: 'spec contribution' })
-  if (!FIREBASE_ENABLED || !db) {
+  const db = FIREBASE_ENABLED ? await getDb() : null
+  if (!db) {
     const s: AccessSpecs = { ...input, id: uid(), contributedAt: Date.now() }
     localSpecs.unshift(s)
     saveSpecs(localSpecs)
     emitLocal()
     return s
   }
+  const { collection, addDoc, serverTimestamp } = await fs()
   const ref = await addDoc(collection(db, 'places', input.placeId, 'specs'), { ...input, contributedAt: serverTimestamp() })
   return { ...input, id: ref.id, contributedAt: Date.now() }
 }
@@ -255,7 +281,7 @@ export async function addSpecs(input: Omit<AccessSpecs, 'id' | 'contributedAt'>)
 /* --------------------------- Live feeds --------------------------- *
  * subscribe* helpers push a fresh list to `cb` on every change. They
  * use Firestore onSnapshot when live, or the local pub/sub otherwise.
- * Each returns an unsubscribe function. The callback fires immediately
+ * Each returns a synchronous unsubscribe function. The callback fires
  * with the current data so callers don't need a separate initial fetch.
  * ------------------------------------------------------------------ */
 
@@ -265,18 +291,26 @@ export function subscribeAlerts(
   onlyActive = true,
 ): () => void {
   let active = true
+  let unsubFs: (() => void) | null = null
 
-  if (FIREBASE_ENABLED && db) {
-    const clauses = []
-    if (placeId) clauses.push(where('placeId', '==', placeId))
-    if (onlyActive) clauses.push(where('status', '==', 'active'))
-    const q = query(collection(db, 'alerts'), ...clauses)
-    return onSnapshot(q, (snap) => {
-      const list = snap.docs
-        .map((d) => ({ id: d.id, ...(d.data() as Omit<Alert, 'id'>), createdAt: toMs(d.data().createdAt) }))
-        .sort((a, b) => b.createdAt - a.createdAt)
-      cb(list)
-    }, () => { /* swallow permission errors — UI keeps last value */ })
+  if (FIREBASE_ENABLED) {
+    ;(async () => {
+      const db = await getDb()
+      if (!db || !active) return
+      const { collection, query, where, onSnapshot } = await fs()
+      const clauses = []
+      if (placeId) clauses.push(where('placeId', '==', placeId))
+      if (onlyActive) clauses.push(where('status', '==', 'active'))
+      const q = query(collection(db, 'alerts'), ...clauses)
+      unsubFs = onSnapshot(q, (snap) => {
+        if (!active) return
+        const list = snap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<Alert, 'id'>), createdAt: toMs(d.data().createdAt) }))
+          .sort((a, b) => b.createdAt - a.createdAt)
+        cb(list)
+      }, () => { /* swallow permission errors — UI keeps last value */ })
+    })()
+    return () => { active = false; unsubFs?.() }
   }
 
   const run = () => { getAlerts(placeId, onlyActive).then((a) => { if (active) cb(a) }) }
@@ -290,17 +324,25 @@ export function subscribeReviews(
   cb: (reviews: Review[]) => void,
 ): () => void {
   let active = true
+  let unsubFs: (() => void) | null = null
 
-  if (FIREBASE_ENABLED && db) {
-    const q = query(collection(db, 'places', placeId, 'reviews'), orderBy('createdAt', 'desc'))
-    return onSnapshot(q, (snap) => {
-      const list = snap.docs.map((d) => ({
-        id: d.id, placeId,
-        ...(d.data() as Omit<Review, 'id' | 'placeId'>),
-        createdAt: toMs(d.data().createdAt),
-      }))
-      cb(list)
-    }, () => { /* swallow errors */ })
+  if (FIREBASE_ENABLED) {
+    ;(async () => {
+      const db = await getDb()
+      if (!db || !active) return
+      const { collection, query, orderBy, onSnapshot } = await fs()
+      const q = query(collection(db, 'places', placeId, 'reviews'), orderBy('createdAt', 'desc'))
+      unsubFs = onSnapshot(q, (snap) => {
+        if (!active) return
+        const list = snap.docs.map((d) => ({
+          id: d.id, placeId,
+          ...(d.data() as Omit<Review, 'id' | 'placeId'>),
+          createdAt: toMs(d.data().createdAt),
+        }))
+        cb(list)
+      }, () => { /* swallow errors */ })
+    })()
+    return () => { active = false; unsubFs?.() }
   }
 
   const run = () => { getReviews(placeId).then((r) => { if (active) cb(r) }) }
