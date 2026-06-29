@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { Loader2, AlertTriangle, Navigation, ExternalLink, LocateFixed, X, Accessibility } from 'lucide-react'
+import {
+  Loader2, AlertTriangle, Navigation, ExternalLink, LocateFixed, X,
+  Accessibility, MapPin, Flag, ArrowUp, CornerUpRight, CornerUpLeft,
+  CornerDownRight, ArrowRightLeft, GitFork, Merge, Clock, Route, RotateCcw,
+  ChevronDown, ChevronUp,
+} from 'lucide-react'
 import Layout from '../components/Layout'
 import { searchPlaces, reverseGeocode, getWalkingRoute, getWheelchairRoute, type GeoResult } from '../lib/nominatim'
 import { googleMapsDir } from '../lib/maps'
@@ -9,9 +14,57 @@ import { googleMapsDir } from '../lib/maps'
 const dot = (color: string) =>
   L.divIcon({
     className: 'am-dot',
-    html: `<span style="display:block;width:16px;height:16px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3),0 0 0 2px ${color}"></span>`,
-    iconSize: [16, 16], iconAnchor: [8, 8],
+    html: `<span style="display:block;width:14px;height:14px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,0.25),0 0 0 2px ${color}40"></span>`,
+    iconSize: [14, 14], iconAnchor: [7, 7],
   })
+
+// Parse "verb on Road Name — 500 m" into parts
+function parseStep(s: string): { verb: string; road: string; dist: string } {
+  const [main = '', distPart = ''] = s.split(' — ')
+  const m = main.match(/^(.+?) on (.+)$/)
+  return { verb: m?.[1] ?? main, road: m?.[2] ?? '', dist: distPart }
+}
+
+function StepIcon({ verb }: { verb: string }) {
+  const v = verb.toLowerCase()
+  const cls = 'shrink-0'
+  if (/depart|start/i.test(v)) return <MapPin size={14} className={cls} />
+  if (/arrive/i.test(v)) return <Flag size={14} className={cls} />
+  if (/turn right/i.test(v)) return <CornerUpRight size={14} className={cls} />
+  if (/turn left/i.test(v)) return <CornerUpLeft size={14} className={cls} />
+  if (/turn/i.test(v)) return <CornerUpRight size={14} className={cls} />
+  if (/off ramp/i.test(v)) return <CornerDownRight size={14} className={cls} />
+  if (/merge/i.test(v)) return <Merge size={14} className={cls} />
+  if (/fork/i.test(v)) return <GitFork size={14} className={cls} />
+  if (/end of road/i.test(v)) return <ArrowRightLeft size={14} className={cls} />
+  return <ArrowUp size={14} className={cls} />
+}
+
+function verbLabel(verb: string): string {
+  const v = verb.toLowerCase()
+  if (/depart/i.test(v)) return 'Start'
+  if (/arrive/i.test(v)) return 'Arrive'
+  if (/off ramp/i.test(v)) return 'Take off-ramp'
+  if (/merge/i.test(v)) return 'Merge'
+  if (/fork/i.test(v)) return 'Take fork'
+  if (/end of road/i.test(v)) return 'End of road'
+  if (/new name/i.test(v)) return 'Continue'
+  if (/turn right/i.test(v)) return 'Turn right'
+  if (/turn left/i.test(v)) return 'Turn left'
+  if (/turn/i.test(v)) return 'Turn'
+  if (/continue|straight/i.test(v)) return 'Continue'
+  return verb.charAt(0).toUpperCase() + verb.slice(1)
+}
+
+function isWarn(s: string) { return /stair|step|escalator/i.test(s) }
+function isHighway(s: string) { return /highway|interstate|freeway|parkway|frontage/i.test(s) }
+
+function formatDist(dist: string): string {
+  const m = parseInt(dist)
+  if (isNaN(m)) return dist
+  if (m >= 1000) return `${(m / 1000).toFixed(1)} km`
+  return `${m} m`
+}
 
 function GeoInput({ label, value, color, onPick, onClear }: {
   label: string; value?: GeoResult; color: string
@@ -23,7 +76,6 @@ function GeoInput({ label, value, color, onPick, onClear }: {
   const [geoBusy, setGeoBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  // keep the text field in sync when the value is set from outside (locate / map click)
   useEffect(() => { setQ(value?.shortName ?? '') }, [value?.shortName])
 
   useEffect(() => {
@@ -54,33 +106,36 @@ function GeoInput({ label, value, color, onPick, onClear }: {
 
   return (
     <div className="relative">
-      <span className="label">{label}</span>
-      <div className="card mt-1 flex items-center gap-2 px-3 py-2">
-        <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: color }} />
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+        <span className="w-12 shrink-0 text-xs font-medium text-muted">{label}</span>
         <input
-          className="w-full bg-transparent outline-none"
+          className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/60"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Type an address, or use the buttons →"
+          placeholder={`Search ${label.toLowerCase()}…`}
           aria-label={label}
         />
-        {busy && <Loader2 size={14} className="animate-spin text-primary" aria-label="Searching" />}
+        {busy && <Loader2 size={13} className="animate-spin text-primary" />}
         {q && !busy && (
-          <button onClick={() => { setQ(''); setResults([]); onClear() }} className="rounded-full p-1 text-muted hover:bg-bg hover:text-ink" title="Clear" aria-label={`Clear ${label}`}><X size={14} /></button>
+          <button onClick={() => { setQ(''); setResults([]); onClear() }}
+            className="rounded-full p-0.5 text-muted hover:text-ink" title="Clear">
+            <X size={13} />
+          </button>
         )}
-        <span className="h-5 w-px bg-border" />
+        <div className="h-4 w-px bg-border" />
         <button onClick={useMyLocation} title="Use my location"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/10">
-          {geoBusy ? <Loader2 size={15} className="animate-spin" /> : <LocateFixed size={15} />}
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-primary hover:bg-primary/10 transition-colors">
+          {geoBusy ? <Loader2 size={13} className="animate-spin" /> : <LocateFixed size={13} />}
         </button>
       </div>
       {err && <p className="mt-1 text-xs text-alert">{err}</p>}
       {results.length > 0 && (
-        <div className="card absolute z-20 mt-1 max-h-64 w-full overflow-y-auto">
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-lg">
           {results.map((r, i) => (
             <button key={i} onClick={() => { onPick(r); setQ(r.shortName); setResults([]) }}
-              className="block w-full border-b border-border px-3 py-2 text-left text-sm last:border-0 hover:bg-bg">
-              <p>{r.shortName}</p>
+              className="block w-full border-b border-border/60 px-3 py-2.5 text-left last:border-0 hover:bg-bg transition-colors">
+              <p className="text-sm font-medium">{r.shortName}</p>
               <p className="truncate text-xs text-muted">{r.displayName}</p>
             </button>
           ))}
@@ -101,29 +156,31 @@ export default function RoutePlanner() {
   const [meta, setMeta] = useState<{ km: number; min: number } | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [hint, setHint] = useState('Tip: tap “Use my location”, search an address, or click the map.')
   const [wheelchairMode, setWheelchairMode] = useState(false)
+  const [stepsOpen, setStepsOpen] = useState(true)
 
-  // refs so the Leaflet click handler always sees the latest state
   const startRef = useRef<GeoResult>(); startRef.current = start
   const endRef = useRef<GeoResult>(); endRef.current = end
 
   useEffect(() => {
     if (!elRef.current || mapRef.current) return
-    const map = L.map(elRef.current, { attributionControl: false }).setView([41.88, -87.63], 12)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map)
+    const map = L.map(elRef.current, { attributionControl: false, zoomControl: false })
+      .setView([39.5, -98.35], 4)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
+    L.control.zoom({ position: 'bottomright' }).addTo(map)
+    L.control.attribution({ position: 'bottomright', prefix: false })
+      .addAttribution('© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>')
+      .addTo(map)
     mapRef.current = map
     setTimeout(() => map.invalidateSize(), 100)
 
-    // click the map to set start, then destination
     map.on('click', async (e: L.LeafletMouseEvent) => {
       const g = await reverseGeocode(e.latlng.lat, e.latlng.lng)
-      if (!startRef.current) { setStart(g); setHint('Start set — now pick a destination.') }
-      else if (!endRef.current) { setEnd(g); setHint('Destination set — press Plan route.') }
-      else { setEnd(g) }
+      if (!startRef.current) setStart(g)
+      else if (!endRef.current) setEnd(g)
+      else setEnd(g)
     })
 
-    // prompt for location and prefill Start
     if (navigator.geolocation && window.isSecureContext) {
       navigator.geolocation.getCurrentPosition(async (pos) => {
         const g = await reverseGeocode(pos.coords.latitude, pos.coords.longitude)
@@ -135,11 +192,10 @@ export default function RoutePlanner() {
     return () => { map.remove(); mapRef.current = null }
   }, [])
 
-  // draw / update endpoint markers when start or end change
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    if (lineRef.current) return // don't fight the planned-route markers
+    if (lineRef.current) return
     markersRef.current.forEach((m) => m.remove()); markersRef.current = []
     if (start) markersRef.current.push(L.marker([start.lat, start.lng], { icon: dot('#0ABFBF') }).addTo(map).bindTooltip('Start'))
     if (end) markersRef.current.push(L.marker([end.lat, end.lng], { icon: dot('#FF6B47') }).addTo(map).bindTooltip('Destination'))
@@ -157,19 +213,20 @@ export default function RoutePlanner() {
       lineRef.current?.remove()
       markersRef.current.forEach((m) => m.remove())
       const routeColor = wheelchairMode ? '#2563eb' : '#0ABFBF'
-      const line = L.polyline(coords, { color: routeColor, weight: 5, opacity: 0.9 }).addTo(mapRef.current)
+      const line = L.polyline(coords, { color: routeColor, weight: 5, opacity: 0.85 }).addTo(mapRef.current)
       lineRef.current = line
       markersRef.current = [
         L.marker([start.lat, start.lng], { icon: dot(routeColor) }).addTo(mapRef.current).bindTooltip('Start'),
         L.marker([end.lat, end.lng], { icon: dot('#FF6B47') }).addTo(mapRef.current).bindTooltip('Destination'),
       ]
-      mapRef.current.fitBounds(line.getBounds(), { padding: [40, 40] })
+      mapRef.current.fitBounds(line.getBounds(), { padding: [50, 50] })
       setSteps(steps)
       setMeta({ km: distance / 1000, min: Math.round(duration / 60) })
+      setStepsOpen(true)
     } catch {
       setErr(wheelchairMode
-        ? 'Could not find a wheelchair-accessible route between those points. Try a shorter distance or switch to walking mode.'
-        : 'Could not find a walking route between those points.')
+        ? 'No wheelchair-accessible route found. Try a shorter trip or switch to walking mode.'
+        : 'No walking route found between those points.')
     } finally { setBusy(false) }
   }
 
@@ -177,82 +234,180 @@ export default function RoutePlanner() {
     lineRef.current?.remove(); lineRef.current = null
     markersRef.current.forEach((m) => m.remove()); markersRef.current = []
     setStart(undefined); setEnd(undefined); setSteps([]); setMeta(null); setErr('')
-    setHint('Tip: tap “Use my location”, search an address, or click the map.')
   }
 
-  const warn = (s: string) => /stair|step|escalator/i.test(s)
+  const warnings = steps.filter(isWarn).length
+  const highways = steps.filter(isHighway).length
 
   return (
     <Layout>
-      <h1 className="text-3xl font-semibold">Accessible route planner</h1>
-      <p className="mt-1 text-muted">Walking directions with optional wheelchair-accessible routing — avoids stairs, steep grades, and inaccessible surfaces.</p>
+      <div className="mb-6">
+        <h1 className="text-3xl font-semibold">Route planner</h1>
+        <p className="mt-1 text-muted">Walking & wheelchair-accessible directions between any two points.</p>
+      </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
-        <div className="space-y-4">
-          <GeoInput label="Start" value={start} color="#0ABFBF" onPick={setStart} onClear={() => setStart(undefined)} />
-          <GeoInput label="Destination" value={end} color="#FF6B47" onPick={setEnd} onClear={() => setEnd(undefined)} />
+      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+        {/* ── Sidebar ── */}
+        <div className="flex flex-col gap-4">
 
-          <p className="text-xs text-muted">{hint}</p>
+          {/* Input card */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
+            <GeoInput label="From" value={start} color="#0ABFBF" onPick={setStart} onClear={() => setStart(undefined)} />
+            <div className="flex items-center gap-2 px-1">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-[10px] font-medium uppercase tracking-widest text-muted">to</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+            <GeoInput label="To" value={end} color="#FF6B47" onPick={setEnd} onClear={() => setEnd(undefined)} />
+          </div>
 
+          {/* Wheelchair toggle */}
           <button
             onClick={() => setWheelchairMode((v) => !v)}
-            className={`flex w-full items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition-colors duration-150 ${
+            className={`flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-medium transition-all duration-150 ${
               wheelchairMode
-                ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                : 'border-border bg-card text-muted hover:text-ink'
+                ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm dark:bg-blue-950 dark:text-blue-300'
+                : 'border-border bg-card text-muted hover:border-border/80 hover:text-ink'
             }`}
           >
-            <Accessibility size={18} />
-            <span>Wheelchair-accessible route</span>
-            {wheelchairMode && (
-              <span className="ml-auto rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white">ON</span>
-            )}
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${wheelchairMode ? 'bg-blue-500 text-white' : 'bg-bg text-muted'}`}>
+              <Accessibility size={16} />
+            </span>
+            <div className="text-left">
+              <p className="font-semibold leading-tight">Wheelchair accessible</p>
+              <p className="text-xs font-normal opacity-70">Avoids stairs &amp; steep grades</p>
+            </div>
+            <div className={`ml-auto h-5 w-9 rounded-full transition-colors ${wheelchairMode ? 'bg-blue-500' : 'bg-border'}`}>
+              <div className={`mt-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${wheelchairMode ? 'translate-x-4.5 ml-0.5' : 'ml-0.5'}`} />
+            </div>
           </button>
-          {wheelchairMode && (
-            <p className="text-xs text-blue-600 dark:text-blue-400">
-              Avoids stairs and steep grades — routes use ramps, curb cuts, and accessible crossings where available.
-            </p>
-          )}
 
+          {/* Action buttons */}
           <div className="flex gap-2">
-            <button onClick={plan} disabled={!start || !end || busy} className="btn-primary flex-1 disabled:opacity-50">
-              {busy ? <Loader2 className="animate-spin" size={16} /> : <Navigation size={16} />} Plan route
+            <button onClick={plan} disabled={!start || !end || busy}
+              className="btn-primary flex-1 disabled:opacity-40">
+              {busy ? <Loader2 className="animate-spin" size={15} /> : <Navigation size={15} />}
+              {busy ? 'Planning…' : 'Plan route'}
             </button>
             <a
               href={start && end ? googleMapsDir([start.lat, start.lng], [end.lat, end.lng]) : undefined}
               target="_blank" rel="noreferrer"
               aria-disabled={!start || !end}
-              className={`gmaps-btn flex-1 ${!start || !end ? 'pointer-events-none opacity-50' : ''}`}
+              className={`gmaps-btn flex-1 ${!start || !end ? 'pointer-events-none opacity-40' : ''}`}
             >
-              <ExternalLink size={16} /> Google Maps
+              <ExternalLink size={15} /> Google Maps
             </a>
           </div>
-          {(start || end) && <button onClick={reset} className="text-sm text-muted hover:text-ink">Reset</button>}
-          {err && <p className="text-sm text-alert">{err}</p>}
 
+          {(start || end) && !busy && (
+            <button onClick={reset} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors">
+              <RotateCcw size={13} /> Reset
+            </button>
+          )}
+
+          {err && (
+            <div className="flex items-start gap-2 rounded-xl border border-alert/30 bg-alert/5 px-3 py-2.5 text-sm text-alert">
+              <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+              <span>{err}</span>
+            </div>
+          )}
+
+          {/* Route summary */}
           {meta && (
-            <div className="card p-4">
-              <div className="flex items-center gap-2">
-                <p className="label">{meta.km.toFixed(1)} km · ~{meta.min} min walking</p>
+            <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+              {/* Stats bar */}
+              <div className={`flex items-center gap-4 px-4 py-3 ${wheelchairMode ? 'bg-blue-50 dark:bg-blue-950/50' : 'bg-primary/5'}`}>
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  <Route size={14} className={wheelchairMode ? 'text-blue-600' : 'text-primary'} />
+                  <span>{meta.km.toFixed(1)} km</span>
+                </div>
+                <div className="h-4 w-px bg-border" />
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  <Clock size={14} className={wheelchairMode ? 'text-blue-600' : 'text-primary'} />
+                  <span>~{meta.min} min</span>
+                </div>
                 {wheelchairMode && (
-                  <span className="flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                    <Accessibility size={11} /> Wheelchair
-                  </span>
+                  <>
+                    <div className="h-4 w-px bg-border" />
+                    <span className="flex items-center gap-1 rounded-full bg-blue-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                      <Accessibility size={10} /> Wheelchair
+                    </span>
+                  </>
                 )}
               </div>
-              <ol className="mt-3 space-y-2">
-                {steps.map((s, i) => (
-                  <li key={i} className={`flex gap-2 text-sm ${warn(s) ? 'text-alert' : 'text-ink/90'}`}>
-                    {warn(s) ? <AlertTriangle size={15} className="mt-0.5 shrink-0" /> : <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
-                    <span>{s}{warn(s) && ' — accessibility warning'}</span>
-                  </li>
-                ))}
-              </ol>
+
+              {/* Warning banners */}
+              {warnings > 0 && (
+                <div className="flex items-center gap-2 border-b border-alert/20 bg-alert/5 px-4 py-2 text-xs text-alert">
+                  <AlertTriangle size={12} />
+                  {warnings} accessibility warning{warnings > 1 ? 's' : ''} — stairs or steps detected
+                </div>
+              )}
+              {highways > 0 && wheelchairMode && (
+                <div className="flex items-center gap-2 border-b border-amber-400/20 bg-amber-50/60 dark:bg-amber-950/20 px-4 py-2 text-xs text-amber-700 dark:text-amber-400">
+                  <AlertTriangle size={12} />
+                  Route includes major roads — consider a shorter trip for better wheelchair paths
+                </div>
+              )}
+
+              {/* Steps */}
+              <button
+                onClick={() => setStepsOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-bg transition-colors"
+              >
+                <span className="text-sm font-semibold">Turn-by-turn directions</span>
+                <span className="flex items-center gap-1 text-xs text-muted">
+                  {steps.length} steps
+                  {stepsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </span>
+              </button>
+
+              {stepsOpen && (
+                <ol className="max-h-72 overflow-y-auto divide-y divide-border/50">
+                  {steps.map((s, i) => {
+                    const { verb, road, dist } = parseStep(s)
+                    const warn = isWarn(s)
+                    const hw = isHighway(s)
+                    const isFirst = i === 0
+                    const isLast = i === steps.length - 1
+                    return (
+                      <li key={i} className={`flex items-start gap-3 px-4 py-3 text-sm transition-colors
+                        ${warn ? 'bg-alert/5 text-alert' : hw && wheelchairMode ? 'bg-amber-50/40 dark:bg-amber-950/10' : 'hover:bg-bg'}
+                      `}>
+                        {/* Step number + icon */}
+                        <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold
+                          ${isFirst || isLast
+                            ? (wheelchairMode ? 'bg-blue-500 text-white' : 'bg-primary text-white')
+                            : warn ? 'bg-alert/15 text-alert' : 'bg-bg text-muted border border-border'
+                          }`}>
+                          {isFirst ? <MapPin size={11} /> : isLast ? <Flag size={11} /> : <StepIcon verb={verb} />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium leading-tight">{verbLabel(verb)}</p>
+                          {road && <p className="mt-0.5 truncate text-xs text-muted">{road}</p>}
+                        </div>
+                        {dist && (
+                          <span className="shrink-0 rounded-md bg-bg px-1.5 py-0.5 text-[11px] font-medium text-muted border border-border/60">
+                            {formatDist(dist)}
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ol>
+              )}
             </div>
+          )}
+
+          {!meta && !busy && (
+            <p className="text-center text-xs text-muted pt-2">
+              Click the map to set start & destination, or search above.
+            </p>
           )}
         </div>
 
-        <div ref={elRef} className="h-[520px] cursor-crosshair overflow-hidden rounded-2xl border border-border" />
+        {/* ── Map ── */}
+        <div ref={elRef} className="h-[540px] cursor-crosshair overflow-hidden rounded-2xl border border-border shadow-sm lg:h-[calc(100vh-160px)] lg:min-h-[500px]" />
       </div>
     </Layout>
   )

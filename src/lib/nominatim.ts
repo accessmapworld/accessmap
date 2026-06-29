@@ -58,33 +58,10 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeoResul
   return { displayName: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, shortName: 'Selected point', lat, lng, osmId: 'reverse' }
 }
 
-/** OSRM walking route → array of [lat, lng] coordinates + steps. */
-export async function getWalkingRoute(
+async function valhallaRoute(
   start: [number, number],
   end: [number, number],
-): Promise<{ coords: [number, number][]; distance: number; duration: number; steps: string[] }> {
-  await spaced('osrm', 600)
-  const url = `https://router.project-osrm.org/route/v1/foot/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&steps=true`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error('Routing failed')
-  const data = await res.json()
-  const route = data.routes?.[0]
-  if (!route) throw new Error('No route found')
-  const coords: [number, number][] = route.geometry.coordinates.map(
-    (c: [number, number]) => [c[1], c[0]],
-  )
-  const steps: string[] = (route.legs?.[0]?.steps ?? []).map((s: any) => {
-    const name = s.name || 'the path'
-    const m = Math.round(s.distance)
-    return `${s.maneuver?.type ?? 'continue'} on ${name} — ${m} m`
-  })
-  return { coords, distance: route.distance, duration: route.duration, steps }
-}
-
-/** Valhalla wheelchair route — avoids stairs, high grades, and inaccessible surfaces. */
-export async function getWheelchairRoute(
-  start: [number, number],
-  end: [number, number],
+  costingOptions: Record<string, unknown>,
 ): Promise<{ coords: [number, number][]; distance: number; duration: number; steps: string[] }> {
   await spaced('valhalla', 600)
   const body = {
@@ -93,14 +70,7 @@ export async function getWheelchairRoute(
       { lat: end[0], lon: end[1] },
     ],
     costing: 'pedestrian',
-    costing_options: {
-      pedestrian: {
-        step_penalty: 30,
-        max_grade: 8,
-        walking_speed: 3.1,
-        use_ferry: 0,
-      },
-    },
+    costing_options: { pedestrian: costingOptions },
     directions_options: { units: 'kilometers', language: 'en-US' },
   }
   const res = await fetch('https://valhalla1.openstreetmap.de/route', {
@@ -108,27 +78,35 @@ export async function getWheelchairRoute(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error('Wheelchair routing failed')
+  if (!res.ok) throw new Error('Routing failed')
   const data = await res.json()
   const leg = data.trip?.legs?.[0]
   if (!leg) throw new Error('No route found')
-
   const coords = decodePolyline(leg.shape, 6)
-
   const steps: string[] = (leg.maneuvers ?? []).map((m: any) => {
     const name = m.street_names?.join(' / ') || 'the path'
     const dist = m.length ? `${(m.length * 1000).toFixed(0)} m` : ''
-    const verb = m.instruction || `${m.type ?? 'continue'} on ${name}`
+    const verb = m.verbal_pre_transition_instruction || m.instruction || `continue on ${name}`
     return dist ? `${verb} — ${dist}` : verb
   })
-
   const summary = data.trip?.summary
-  return {
-    coords,
-    distance: (summary?.length ?? 0) * 1000,
-    duration: (summary?.time ?? 0),
-    steps,
-  }
+  return { coords, distance: (summary?.length ?? 0) * 1000, duration: summary?.time ?? 0, steps }
+}
+
+/** Global walking route via Valhalla (covers the entire planet). */
+export async function getWalkingRoute(
+  start: [number, number],
+  end: [number, number],
+): Promise<{ coords: [number, number][]; distance: number; duration: number; steps: string[] }> {
+  return valhallaRoute(start, end, { walking_speed: 4.5, use_ferry: 1 })
+}
+
+/** Wheelchair route via Valhalla — avoids stairs, high grades, and inaccessible surfaces. */
+export async function getWheelchairRoute(
+  start: [number, number],
+  end: [number, number],
+): Promise<{ coords: [number, number][]; distance: number; duration: number; steps: string[] }> {
+  return valhallaRoute(start, end, { step_penalty: 30, max_grade: 8, walking_speed: 3.1, use_ferry: 0 })
 }
 
 function decodePolyline(encoded: string, precision = 5): [number, number][] {
