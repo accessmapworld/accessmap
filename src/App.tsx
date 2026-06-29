@@ -28,6 +28,7 @@ const Accessibility    = lazy(() => import('./pages/Accessibility'))
 const ForBusiness      = lazy(() => import('./pages/ForBusiness'))
 const ScanPage         = lazy(() => import('./pages/ScanPage'))
 const TrailsPage       = lazy(() => import('./pages/TrailsPage'))
+const TruckRouter      = lazy(() => import('./pages/TruckRouter'))
 
 function S({ children, fallback }: { children: React.ReactNode; fallback: React.ReactNode }) {
   return <Suspense fallback={fallback}>{children}</Suspense>
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/map"            element={<S fallback={<MapSkeleton />}><MapPage /></S>} />
         <Route path="/place/:id"      element={<S fallback={<PlaceDetailSkeleton />}><PlaceDetail /></S>} />
         <Route path="/route"          element={<S fallback={<RouteSkeleton />}><RoutePlanner /></S>} />
+        <Route path="/truck"          element={<S fallback={<RouteSkeleton />}><TruckRouter /></S>} />
         <Route path="/report"         element={<S fallback={<ReportSkeleton />}><Report /></S>} />
         <Route path="/submit-review"  element={<S fallback={<ReviewSkeleton />}><SubmitReview /></S>} />
         <Route path="/scan"           element={<S fallback={<ScanSkeleton />}><ScanPage /></S>} />

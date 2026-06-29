@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Map as MapIcon, Accessibility, UserCog, LogIn, ScanLine, Mountain } from 'lucide-react'
+import { Route as RouteIcon, Flag, Star, User, ShieldCheck, Map as MapIcon, Accessibility, UserCog, LogIn, ScanLine, Mountain, Truck } from 'lucide-react'
 import MapPin from './MapPin'
 import { useStore } from '../store/useStore'
 import { hasProfile } from '../lib/compatibility'
@@ -28,6 +28,7 @@ export default function Navbar() {
     { to: '/trails',        label: 'Trails', icon: Mountain  },
     { to: '/scan',          label: 'Scan',   icon: ScanLine  },
     { to: '/route',         label: 'Route',  icon: RouteIcon },
+    { to: '/truck',         label: 'Trucks', icon: Truck     },
     { to: '/report',        label: 'Report', icon: Flag      },
     { to: '/submit-review', label: 'Review', icon: Star      },
   ]

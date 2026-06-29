@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { Map as MapIcon, Route as RouteIcon, Flag, Star } from 'lucide-react'
+import { Map as MapIcon, Route as RouteIcon, Flag, Star, Truck } from 'lucide-react'
 
 const links = [
   { to: '/map',           label: 'Map',    icon: MapIcon    },
   { to: '/route',         label: 'Route',  icon: RouteIcon  },
+  { to: '/truck',         label: 'Truck',  icon: Truck      },
   { to: '/report',        label: 'Report', icon: Flag       },
   { to: '/submit-review', label: 'Review', icon: Star       },
 ]
