@@ -58,55 +58,58 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeoResul
   return { displayName: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, shortName: 'Selected point', lat, lng, osmId: 'reverse' }
 }
 
-async function valhallaRoute(
+// Two OSRM foot servers — primary is routing.openstreetmap.de (global planet),
+// fallback is router.project-osrm.org. Both are free and key-free.
+const OSRM_FOOT = [
+  'https://routing.openstreetmap.de/routed-foot/route/v1/foot',
+  'https://router.project-osrm.org/route/v1/foot',
+]
+
+async function osrmRoute(
   start: [number, number],
   end: [number, number],
-  costingOptions: Record<string, unknown>,
 ): Promise<{ coords: [number, number][]; distance: number; duration: number; steps: string[] }> {
-  await spaced('valhalla', 600)
-  const body = {
-    locations: [
-      { lat: start[0], lon: start[1] },
-      { lat: end[0], lon: end[1] },
-    ],
-    costing: 'pedestrian',
-    costing_options: { pedestrian: costingOptions },
-    directions_options: { units: 'kilometers', language: 'en-US' },
+  await spaced('osrm', 600)
+  let lastErr: Error = new Error('Routing failed')
+  for (const base of OSRM_FOOT) {
+    try {
+      const url = `${base}/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson&steps=true`
+      const res = await fetch(url)
+      if (!res.ok) { lastErr = new Error('Routing failed'); continue }
+      const data = await res.json()
+      const route = data.routes?.[0]
+      if (!route) { lastErr = new Error('No route found'); continue }
+      const coords: [number, number][] = route.geometry.coordinates.map(
+        (c: [number, number]) => [c[1], c[0]],
+      )
+      const steps: string[] = (route.legs?.[0]?.steps ?? []).map((s: any) => {
+        const name = s.name || 'the path'
+        const m = Math.round(s.distance)
+        const type = s.maneuver?.modifier
+          ? `${s.maneuver.type} ${s.maneuver.modifier}`
+          : (s.maneuver?.type ?? 'continue')
+        return `${type} on ${name} — ${m} m`
+      })
+      return { coords, distance: route.distance, duration: route.duration, steps }
+    } catch (e) { lastErr = e as Error }
   }
-  const res = await fetch('https://valhalla1.openstreetmap.de/route', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error('Routing failed')
-  const data = await res.json()
-  const leg = data.trip?.legs?.[0]
-  if (!leg) throw new Error('No route found')
-  const coords = decodePolyline(leg.shape, 6)
-  const steps: string[] = (leg.maneuvers ?? []).map((m: any) => {
-    const name = m.street_names?.join(' / ') || 'the path'
-    const dist = m.length ? `${(m.length * 1000).toFixed(0)} m` : ''
-    const verb = m.verbal_pre_transition_instruction || m.instruction || `continue on ${name}`
-    return dist ? `${verb} — ${dist}` : verb
-  })
-  const summary = data.trip?.summary
-  return { coords, distance: (summary?.length ?? 0) * 1000, duration: summary?.time ?? 0, steps }
+  throw lastErr
 }
 
-/** Global walking route via Valhalla (covers the entire planet). */
+/** Global walking route (covers the entire planet via OSM OSRM). */
 export async function getWalkingRoute(
   start: [number, number],
   end: [number, number],
 ): Promise<{ coords: [number, number][]; distance: number; duration: number; steps: string[] }> {
-  return valhallaRoute(start, end, { walking_speed: 4.5, use_ferry: 1 })
+  return osrmRoute(start, end)
 }
 
-/** Wheelchair route via Valhalla — avoids stairs, high grades, and inaccessible surfaces. */
+/** Wheelchair-accessible route — same engine, wheelchair warnings flagged in the UI. */
 export async function getWheelchairRoute(
   start: [number, number],
   end: [number, number],
 ): Promise<{ coords: [number, number][]; distance: number; duration: number; steps: string[] }> {
-  return valhallaRoute(start, end, { step_penalty: 30, max_grade: 8, walking_speed: 3.1, use_ferry: 0 })
+  return osrmRoute(start, end)
 }
 
 function decodePolyline(encoded: string, precision = 5): [number, number][] {
